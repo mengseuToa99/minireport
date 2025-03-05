@@ -1,0 +1,2062 @@
+@extends('layouts.app')
+@section('title', __('lang_v1.all_sales'))
+
+@php
+    function getFieldIcon($field)
+    {
+        $iconMap = [
+            'date' => 'fa-calendar',
+            'invoice_no' => 'fa-file-text',
+            'customer' => 'fa-user',
+            'email' => 'fa-envelope',
+            'phone' => 'fa-phone',
+            'total' => 'fa-money',
+            'product' => 'fa-cube',
+            'quantity' => 'fa-shopping-cart',
+            'tax' => 'fa-percent',
+            'khr_rate' => 'fa-exchange',
+            'thb_rate' => 'fa-exchange',
+            'exchange_date' => 'fa-calendar',
+            'category' => 'fa-tag',
+            // Add more mappings as needed
+        ];
+
+        return $iconMap[$field] ?? 'fa-field';
+    }
+@endphp
+
+@section('css')
+    <style>
+        .table-container {
+            margin: 20px;
+            overflow-x: auto;
+        }
+
+        .dynamic-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: fixed;
+        }
+
+        .dynamic-table th,
+        .dynamic-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            position: relative;
+            cursor: context-menu;
+            user-select: none;
+        }
+        
+        .dynamic-table th {
+            background-color: #f5f5f5;
+            cursor: move;
+            user-select: none;
+        }
+
+        .add-column-btn,
+        .add-row-btn {
+            margin: 10px;
+            padding: 5px 15px;
+        }
+
+        .table-controls {
+            margin-bottom: 15px;
+        }
+
+        .cell-input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            outline: none;
+        }
+
+        .cell-input:focus {
+            background: #fff;
+            box-shadow: 0 0 3px #0066cc;
+        }
+
+        .column-dragging {
+            opacity: 0.5;
+            background: #e9ecef !important;
+        }
+
+        .column-drag-over {
+            border-left: 2px solid #4CAF50;
+        }
+
+        .dynamic-table th::after {
+            margin-left: 8px;
+            color: #666;
+            opacity: 0.5;
+        }
+
+        .list-group-item {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .list-group-item:hover {
+            background-color: #f8f9fa;
+            transform: translateX(5px);
+        }
+
+        .list-group-item i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .field-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f8f9fa;
+        }
+
+        .field-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .field-item i {
+            margin-right: 8px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .accordion .card-header {
+            padding: 0;
+        }
+
+        .accordion .btn-link {
+            width: 100%;
+            text-align: left;
+            text-decoration: none;
+            color: #333;
+        }
+
+        .accordion .btn-link:hover {
+            text-decoration: none;
+        }
+
+
+        /* Left Panel Styling */
+        .panel-2 {
+            display: flex;
+            gap: 20px;
+            position: relative;
+            align-items: flex-start;
+            background: transparent;
+        }
+
+        .col-md-3 {
+            margin-left: 0px;
+            min-width: 200px;
+            max-width: 200px;
+            position: sticky;
+            top: 0;
+            height: fit-content;
+            z-index: 10;
+            flex-shrink: 0;
+            overflow: visible;
+        }
+
+        .col-md-3 .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+            position: sticky;
+            top: 20px;
+        }
+
+        .col-md-3 .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            padding: 12px 15px;
+        }
+
+        .col-md-3 .card-header h5 {
+            margin: 0;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .col-md-3 .card-body {
+            padding: 12px;
+            max-height: none;
+            overflow-y: visible;
+        }
+
+        /* Accordion Styling */
+        .accordion .card {
+            border: none;
+            margin-bottom: 6px;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .accordion .card-header {
+            padding: 0;
+            background: none;
+            border: none;
+        }
+
+        .accordion .btn-link {
+            width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            color: #2c3e50;
+            font-weight: 500;
+            font-size: 13px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            position: relative;
+            text-decoration: none;
+        }
+
+        .accordion .btn-link:hover {
+            background: #f8f9fa;
+            text-decoration: none;
+        }
+
+        .accordion .btn-link::after {
+            content: '\f107';
+            font-family: 'FontAwesome';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .accordion .btn-link:not(.collapsed)::after {
+            transform: translateY(-50%) rotate(-180deg);
+        }
+
+        .accordion .collapse {
+            position: static;
+            width: 100%;
+            background: transparent;
+            z-index: 20;
+            border-radius: 4px;
+            margin-top: 2px;
+        }
+
+        .accordion .card-body {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Field Items */
+        .field-item {
+            padding: 6px 10px;
+            margin: 3px 0;
+            border-radius: 4px;
+            background: white;
+            border: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            cursor: grab;
+            font-size: 12px;
+            color: #4a5568;
+            transition: background 0.2s ease;
+        }
+
+        .field-item:hover {
+            background: #f8f9fa;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .field-item i {
+            margin-right: 8px;
+            color: #6c757d;
+            width: 16px;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        /* Custom Formula Option */
+        .field-item.mt-3 {
+            background: #f8f9fa;
+            color: #2c3e50;
+            border-color: #e9ecef;
+            margin-top: 12px !important;
+            font-weight: 500;
+        }
+
+        .field-item.mt-3:hover {
+            background: #f8f9fa;
+        }
+
+        .field-item.mt-3 i {
+            color: #2c3e50;
+        }
+
+        /* Scrollbar Styling */
+        .col-md-3 .card-body::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .col-md-3 .card-body::-webkit-scrollbar-track {
+            background: #f8f9fa;
+        }
+
+        .col-md-3 .card-body::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 3px;
+        }
+
+        .col-md-3 .card-body::-webkit-scrollbar-thumb:hover {
+            background: #ccc;
+        }
+
+        /* Table Container */
+        .table-container {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            min-width: 0;
+            overflow-x: auto;
+            position: relative;
+            z-index: 1;
+            height: fit-content;
+            margin-right: 20px;
+        }
+
+        .context-menu {
+            position: fixed;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            padding: 5px 0;
+            min-width: 150px;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .context-menu-item:hover {
+            background: #f5f5f5;
+        }
+
+        .context-menu-separator {
+            border-top: 1px solid #ddd;
+            margin: 4px 0;
+        }
+
+        .dynamic-table th.selected,
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.1);
+            position: relative;
+        }
+
+        .dynamic-table th.selected {
+            background-color: rgba(0, 120, 215, 0.2);
+        }
+
+        /* Add selection indicator */
+        .dynamic-table td.selected::after,
+        .dynamic-table th.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        /* Add user-select styles */
+        .dynamic-table {
+            user-select: none;
+        }
+
+        .dynamic-table td[contenteditable="false"],
+        .dynamic-table th[contenteditable="true"] {
+            user-select: text;
+        }
+
+        .header-edit-input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 2px solid #0066cc;
+            border-radius: 4px;
+            font-size: inherit;
+            background: white;
+        }
+
+        .accordion {
+            position: relative;
+        }
+
+        /* Add styles for editable cells */
+        .dynamic-table td[contenteditable="true"],
+        .dynamic-table th[contenteditable="true"] {
+            padding: 4px 8px;
+            outline: none;
+            min-width: 100px;
+        }
+
+        .dynamic-table td[contenteditable="true"]:focus,
+        .dynamic-table th[contenteditable="true"]:focus {
+            background-color: #fff;
+            box-shadow: inset 0 0 0 2px #0066cc;
+            border-radius: 4px;
+        }
+
+        /* Style for empty cells */
+        .dynamic-table td:empty::before,
+        .dynamic-table th:empty::before {
+            content: 'Click to edit';
+            color: #999;
+            font-style: italic;
+        }
+
+        /* Add styles for merge modal */
+        #mergeModal .form-group {
+            margin-bottom: 1rem;
+        }
+
+        #mergeModal label {
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        #mergeModal .form-control {
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 0.5rem;
+        }
+
+        #mergeModal .form-control:focus {
+            border-color: #0066cc;
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        /* Add CSS for merged cells */
+        .merged-cell {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            position: relative;
+            text-align: center;
+        }
+
+        .merged-cell::after {
+            display: none;
+        }
+
+        .merged-cell:hover {
+            background-color: #e9ecef;
+        }
+
+        /* Add styles for merged cells */
+        .dynamic-table td[colspan] {
+            text-align: center;
+            background-color: #f8f9fa;
+        }
+
+        .dynamic-table td[colspan]:hover {
+            background-color: #e9ecef;
+        }
+
+        /* Update selection styles */
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.1);
+            position: relative;
+        }
+
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        /* Add hover effect for selectable cells */
+        .dynamic-table td:hover {
+            background-color: rgba(0, 120, 215, 0.05);
+            cursor: pointer;
+        }
+
+        /* Improve user selection handling */
+        .dynamic-table {
+            user-select: none;
+        }
+
+        .dynamic-table td,
+        .dynamic-table th {
+            cursor: pointer;
+        }
+
+        .dynamic-table td {
+            transition: background-color 0.15s ease;
+        }
+
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.2) !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        .dynamic-table td:hover:not(.selected) {
+            background-color: rgba(0, 120, 215, 0.05);
+        }
+
+        /* Style for cells that can be merged */
+        .dynamic-table td.can-merge {
+            background-color: rgba(0, 180, 0, 0.1);
+        }
+
+        /* Add visual feedback for shift selection */
+        .dynamic-table td.selection-target {
+            background-color: rgba(0, 120, 215, 0.1);
+        }
+
+        /* Update the selection styles to be more specific to cells */
+        .dynamic-table td {
+            transition: background-color 0.15s ease;
+        }
+
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.2) !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        .dynamic-table td:hover:not(.selected) {
+            background-color: rgba(0, 120, 215, 0.05);
+        }
+
+        /* Remove column-related styles */
+        .dynamic-table th {
+            user-select: none;
+            cursor: default;
+        }
+
+        .dynamic-table td {
+            cursor: pointer;
+        }
+
+        /* Update the cell selection and hover styles */
+        .dynamic-table td {
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.2) !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        .dynamic-table td.can-merge {
+            background-color: rgba(0, 180, 0, 0.1);
+            position: relative;
+        }
+
+        .dynamic-table td.can-merge::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px dashed rgba(0, 180, 0, 0.4);
+            pointer-events: none;
+        }
+
+        .dynamic-table td:hover:not(.selected):not(.can-merge) {
+            background-color: rgba(0, 120, 215, 0.05);
+        }
+
+        /* Add to your existing CSS */
+        .merged-cell {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .merged-cell::before {
+            content: '↔';
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: #666;
+            opacity: 0.5;
+        }
+
+        .merged-cell:hover::before {
+            opacity: 1;
+        }
+
+        .context-menu-item.unmerge-option {
+            color: #d63031;
+        }
+
+        .context-menu-item.unmerge-option:hover {
+            background-color: #fff3f3;
+        }
+
+        /* Remove or comment out column-related styles */
+        /* .dynamic-table th[data-selected],
+                                            .dynamic-table td[data-selected] {
+                                                background-color: rgba(0, 120, 215, 0.1);
+                                            } */
+
+        /* Update cell selection styles */
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.2) !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.4);
+            pointer-events: none;
+        }
+
+        .dynamic-table td:hover:not(.selected):not(.merged-cell) {
+            background-color: rgba(0, 120, 215, 0.05);
+            cursor: pointer;
+        }
+
+        /* Add styles for delete header row option */
+        .delete-header-row {
+            color: #d63031;
+        }
+
+        .delete-header-row:hover {
+            background-color: #fff3f3;
+        }
+
+
+        /* ---------------------- */
+
+        .dynamic-table td.selected {
+            background-color: rgba(0, 120, 215, 0.2);
+            position: relative;
+        }
+
+        .dynamic-table td.selecting {
+            background-color: rgba(0, 120, 215, 0.1);
+        }
+
+        /* Prevent text selection while dragging */
+        .dynamic-table {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Selection border style */
+        .dynamic-table td.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(0, 120, 215, 0.5);
+            pointer-events: none;
+        }
+    </style>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+@endsection
+
+@section('content')
+    <div class="create-section" style="margin-left: 20px;">
+        <a href="{{ route('MiniReportB1.index') }}" class="btn btn-sm btn-primary" style="margin: 10px; font-size: 15px">
+            <i class="fa fa-arrow-left"></i> Back
+        </a>
+        <form id="createFileForm" class="mb-3">
+            @csrf
+            <div class="form-group">
+                <label for="fileName">File Name</label>
+                <input type="text" class="form-control" id="fileName" name="file_name" required>
+            </div>
+            <div class="form-group">
+                <label for="parentFolder">Select Session</label>
+                <select class="form-control" id="parentFolder" name="parent_id" required>
+                    @foreach ($folders->where('type', 'report_section') as $folder)
+                        <option value="{{ $folder->id }}">{{ $folder->folder_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-2"></i> Save</button>
+        </form>
+        <div class="table-container">
+            <div class="table-controls">
+                <button style="margin-left: 90%;" class="btn btn-primary" onclick="showFormulaModal()">
+                    <i class="fa fa-calculator"></i> Add Formula
+                </button>
+            </div>
+            <div class="panel-2">
+                <!-- Left Panel -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fa fa-list-alt"></i> Menu</h5>
+                            <a style="margin-top: 15px; font-size: 10px;"
+                                href="{{ route('MiniReportB1.select-tables-fields') }}" class="btn btn-primary"><i
+                                    class="fas fa-layer-group mr-2"> </i> Create Menu</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="fieldsAccordion">
+                                @foreach ($rawData['categories'] as $category => $fields)
+                                    <div class="card">
+                                        <div class="card-header" id="heading{{ Str::slug($category) }}">
+                                            <h5 class="mb-0">
+                                                <button class="btn btn-link" type="button" data-toggle="collapse"
+                                                    data-target="#collapse{{ Str::slug($category) }}">
+                                                    {{ $category }}
+                                                </button>
+                                            </h5>
+                                        </div>
+                                        <div id="collapse{{ Str::slug($category) }}" class="collapse"
+                                            data-parent="#fieldsAccordion">
+                                            <div class="card-body">
+                                                @foreach ($fields as $field)
+                                                    <div class="field-item" draggable="true"
+                                                        ondragstart="fieldDragStart(event)" data-field="{{ $field }}"
+                                                        onclick="selectColumnType('{{ $field }}', '{{ ucfirst(str_replace('_', ' ', $field)) }}')">
+                                                        <i class="fa {{ getFieldIcon($field) }}"></i>
+                                                        {{ ucfirst(str_replace('_', ' ', $field)) }}
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                                <!-- Custom Formula Option -->
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <table class="dynamic-table" id="dynamicTable">
+                    <thead>
+                        <tr>
+                            <th draggable="true" ondragstart="handleHeaderDragStart(event)" ondragover="dragOver(event)"
+                                ondrop="drop(event)" ondragend="dragEnd()" data-field="date">
+                                Date
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($formatted_data as $row)
+                            <tr>
+                                <td contenteditable="false">{{ $row['date'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" onclick="insertColumn('left')">Insert Column Left</div>
+        <div class="context-menu-item" onclick="insertColumn('right')">Insert Column Right</div>
+        <div class="context-menu-item" onclick="deleteColumn()">Delete Column</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item merge-option" onclick="showMergeOptions()">Merge Cells</div>
+        <div class="context-menu-item unmerge-option" onclick="unmergeCell(activeCell)" style="display: none;">Unmerge Cells
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" onclick="editHeader()">Edit Header</div>
+        <div class="context-menu-item delete-header-row" onclick="deleteHeaderRow()" style="color: #d63031;">Delete Header
+            Row</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" onclick="insertRow('above')">Insert Row Above</div>
+        <div class="context-menu-item" onclick="insertRow('below')">Insert Row Below</div>
+        <div class="context-menu-item" onclick="deleteRow()">Delete Row</div>
+    </div>
+
+    <div class="modal fade" id="formulaModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Custom Formula Column</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Column Name</label>
+                        <input type="text" class="form-control" id="formulaColumnName"
+                            placeholder="Enter column name">
+                    </div>
+                    <div class="form-group">
+                        <label>Formula Type</label>
+                        <select class="form-control" id="formulaType">
+                            <option value="sum">Sum</option>
+                            <option value="multiply">Multiply</option>
+                            <option value="divide">Divide</option>
+                            <option value="subtract">Subtract</option>
+                            <option value="percentage">Percentage</option>
+                            <option value="custom">Custom Formula</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>First Column</label>
+                        <select class="form-control" id="formulaColumn1"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Second Column</label>
+                        <select class="form-control" id="formulaColumn2"></select>
+                    </div>
+                    <div id="customFormulaSection" style="display: none;">
+                        <div class="form-group">
+                            <label>Custom Formula</label>
+                            <textarea class="form-control" id="customFormula"
+                                placeholder="Use col1 and col2 as variables. Example: (col1 * col2) / 100" style="display: none;"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="applyFormula()">Apply Formula</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="mergeModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Merge Cells</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Merge Direction</label>
+                        <select class="form-control" id="mergeDirection">
+                            <option value="horizontal">Horizontal</option>
+                            <option value="vertical">Vertical</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Cells</label>
+                        <input type="number" class="form-control" id="mergeCellCount" min="2" value="2">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="mergeCells()">Merge</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+@endsection
+
+@section('javascript')
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+    </script>
+
+    <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+
+        // Initialize variables
+        let tableChanges = {
+            columns: [],
+            rows: [],
+            mergedCells: [],
+            deletedColumns: [],
+            deletedRows: []
+        };
+
+        let columnCount = 0;
+        let draggedColumnIndex = null;
+        let activeCell = null;
+        let isColumnDragging = false;
+
+        // Initialize when document is ready
+        $(document).ready(function() {
+            $('#createFileForm').on('submit', function(e) {
+                e.preventDefault();
+                createFile();
+            });
+
+            initializeTable();
+            initializeContextMenu();
+            initializeFormulaModal();
+            initializeDragAndDrop();
+        });
+
+        function initializeTable() {
+            const table = document.getElementById('dynamicTable');
+
+            // Make headers draggable
+            Array.from(table.querySelectorAll('th')).forEach(th => {
+                th.setAttribute('draggable', 'true');
+                th.addEventListener('dragstart', handleHeaderDragStart);
+                th.addEventListener('dragover', dragOver);
+                th.addEventListener('drop', drop);
+                th.addEventListener('dragend', dragEnd);
+            });
+
+            // Make cells editable
+            Array.from(table.querySelectorAll('td')).forEach(td => {
+                td.setAttribute('contenteditable', 'false');
+            });
+
+            // Initialize cell selection
+            table.addEventListener('click', handleCellClick);
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dynamic-table')) {
+                    clearAllSelections();
+                }
+            });
+        }
+
+        function initializeContextMenu() {
+            const contextMenu = document.getElementById('contextMenu');
+
+            document.addEventListener('contextmenu', function(e) {
+                if (e.target.closest('.dynamic-table')) {
+                    e.preventDefault();
+
+                    // Update active cell
+                    activeCell = e.target.closest('td, th');
+
+                    // Position the menu at cursor
+                    contextMenu.style.display = 'block';
+
+                    // Get window dimensions
+                    const windowWidth = window.innerWidth;
+                    const windowHeight = window.innerHeight;
+
+                    // Get menu dimensions
+                    const menuWidth = contextMenu.offsetWidth;
+                    const menuHeight = contextMenu.offsetHeight;
+
+                    // Calculate position, keeping menu within window bounds
+                    // Add offset to show below the pointer
+                    let left = e.pageX - 5; // 5px to the left of pointer
+                    let top = e.pageY + 5; // 5px below pointer
+
+                    // Adjust if menu would go outside window
+                    if (left + menuWidth > windowWidth) {
+                        left = windowWidth - menuWidth - 5;
+                    }
+                    if (top + menuHeight > windowHeight) {
+                        top = e.pageY - menuHeight - 5; // Show above pointer if not enough space below
+                    }
+
+                    // Set the position
+                    contextMenu.style.left = left + 'px';
+                    contextMenu.style.top = top + 'px';
+
+                    // Update menu options based on cell type
+                    updateContextMenuOptions(activeCell);
+                }
+            });
+
+            // Hide context menu when clicking outside
+            document.addEventListener('click', hideContextMenu);
+
+            // Hide context menu when scrolling
+            document.addEventListener('scroll', hideContextMenu);
+
+            // Hide context menu when window is resized
+            window.addEventListener('resize', hideContextMenu);
+        }
+
+        function hideContextMenu() {
+            const contextMenu = document.getElementById('contextMenu');
+            contextMenu.classList.remove('visible');
+            // Wait for transition to complete before hiding
+            setTimeout(() => {
+                if (!contextMenu.classList.contains('visible')) {
+                    contextMenu.style.display = 'none';
+                }
+            }, 150);
+        }
+
+        function updateContextMenuOptions(cell) {
+            const isHeader = cell?.tagName.toLowerCase() === 'th';
+            const isMerged = cell?.classList.contains('merged-cell');
+
+            // Get menu items
+            const mergeOption = document.querySelector('.merge-option');
+            const unmergeOption = document.querySelector('.unmerge-option');
+            const editHeaderOption = document.querySelector('.context-menu-item[onclick="editHeader()"]');
+            const deleteHeaderRowOption = document.querySelector('.delete-header-row');
+
+            // Show/hide options based on context
+            if (mergeOption) mergeOption.style.display = isMerged ? 'none' : 'block';
+            if (unmergeOption) unmergeOption.style.display = isMerged ? 'block' : 'none';
+            if (editHeaderOption) editHeaderOption.style.display = isHeader ? 'block' : 'none';
+            if (deleteHeaderRowOption) deleteHeaderRowOption.style.display = isHeader ? 'block' : 'none';
+        }
+
+        function initializeFormulaModal() {
+            // No changes needed as we removed direction selection
+            // Ensure the formula modal works independently
+            $('#formulaType').on('change', function() {
+                const isCustom = $(this).val() === 'custom';
+                $('#customFormulaSection')[isCustom ? 'show' : 'hide']();
+            });
+        }
+
+        // Table manipulation functions
+        function insertColumn(position) {
+            if (!activeCell) return;
+
+            const table = document.getElementById('dynamicTable');
+            const colIndex = position === 'left' ? activeCell.cellIndex : activeCell.cellIndex + 1;
+
+            // Insert in header
+            const headerRow = table.querySelector('thead tr');
+            const newHeader = headerRow.insertCell(colIndex);
+            newHeader.innerHTML = 'New Column';
+            newHeader.setAttribute('draggable', 'true');
+            newHeader.addEventListener('dragstart', handleHeaderDragStart);
+            newHeader.addEventListener('dragover', dragOver);
+            newHeader.addEventListener('drop', drop);
+            newHeader.addEventListener('dragend', dragEnd);
+
+            // Insert in all body rows
+            const bodyRows = table.querySelectorAll('tbody tr');
+            bodyRows.forEach(row => {
+                const newCell = row.insertCell(colIndex);
+                newCell.setAttribute('contenteditable', 'false');
+            });
+
+            columnCount++;
+            hideContextMenu();
+        }
+
+        function deleteColumn() {
+            if (!activeCell) return;
+
+            const table = document.getElementById('dynamicTable');
+            const colIndex = activeCell.cellIndex;
+
+            // Check for merged cells in the column
+            for (let i = 0; i < table.rows.length; i++) {
+                const cell = table.rows[i].cells[colIndex];
+                if (cell && (cell.hasAttribute('colspan') || cell.hasAttribute('rowspan'))) {
+                    alert('Cannot delete a column that contains merged cells.');
+                    return;
+                }
+            }
+
+            // Delete from all rows
+            Array.from(table.rows).forEach(row => {
+                row.deleteCell(colIndex);
+            });
+
+            hideContextMenu();
+        }
+
+        function insertRow(position) {
+            if (!activeCell) return;
+
+            const table = document.getElementById('dynamicTable');
+            const currentRow = activeCell.parentElement;
+            const newRow = table.insertRow(
+                position === 'above' ?
+                currentRow.rowIndex :
+                currentRow.rowIndex + 1
+            );
+
+            // Copy the structure of the current row
+            const columnCount = currentRow.cells.length;
+            for (let i = 0; i < columnCount; i++) {
+                const cell = newRow.insertCell();
+                cell.setAttribute('contenteditable', 'true');
+            }
+
+            hideContextMenu();
+        }
+
+        function deleteRow() {
+            if (!activeCell) return;
+
+            const table = document.getElementById('dynamicTable');
+            const rowIndex = activeCell.parentElement.rowIndex;
+
+            // Prevent deleting header row
+            if (activeCell.tagName.toLowerCase() === 'th') {
+                alert('Cannot delete header rows.');
+                return;
+            }
+
+            table.deleteRow(rowIndex);
+
+            hideContextMenu();
+        }
+
+        // Cell merging functions
+        function showMergeOptions() {
+            // Now directly call the automatic merge function
+            mergeSelectedCellsAutomatically();
+        }
+
+        function mergeSelectedCellsAutomatically() {
+            const table = document.getElementById('dynamicTable');
+            const selectedCells = table.querySelectorAll('.merge-target');
+
+            if (selectedCells.length < 2) {
+                alert('Please select at least two cells to merge.');
+                return;
+            }
+
+            // Determine Merge Direction
+            const mergeDirection = determineMergeDirection(selectedCells);
+
+            if (!mergeDirection) {
+                alert('Invalid selection. Please select cells in a single row or column.');
+                return;
+            }
+
+            // Perform Merge Based on Direction
+            if (mergeDirection === 'horizontal') {
+                mergeSelectedCellsHorizontally(selectedCells);
+            } else if (mergeDirection === 'vertical') {
+                mergeSelectedCellsVertically(selectedCells);
+            }
+        }
+
+        // Function to Determine Merge Direction
+        function determineMergeDirection(selectedCells) {
+            const rows = Array.from(selectedCells).map(cell => cell.parentElement.rowIndex);
+            const cols = Array.from(selectedCells).map(cell => cell.cellIndex);
+
+            const uniqueRows = [...new Set(rows)];
+            const uniqueCols = [...new Set(cols)];
+
+            if (uniqueRows.length === 1) {
+                return 'horizontal';
+            } else if (uniqueCols.length === 1) {
+                return 'vertical';
+            } else {
+                // More than one row and more than one column
+                // Optionally, you can allow rectangular merges by handling rowspan and colspan
+                // For simplicity, we'll restrict to single direction merges
+                return null;
+            }
+        }
+
+        // Function to Merge Selected Cells Horizontally
+        function mergeSelectedCellsHorizontally(selectedCells) {
+            const table = document.getElementById('dynamicTable');
+            const firstCell = selectedCells[0];
+            const row = firstCell.parentElement;
+            const startIndex = firstCell.cellIndex;
+            const count = selectedCells.length;
+
+            // Check for existing merged cells in the range
+            for (let i = startIndex; i < startIndex + count; i++) {
+                if (row.cells[i].hasAttribute('colspan') || row.cells[i].hasAttribute('rowspan')) {
+                    alert('Cannot merge cells that are already merged.');
+                    return;
+                }
+            }
+
+            // Set colspan and mark as merged
+            firstCell.setAttribute('colspan', count);
+            firstCell.classList.add('merged-cell');
+
+            // Remove other cells
+            for (let i = 1; i < count; i++) {
+                row.deleteCell(startIndex + 1);
+            }
+
+            // Clear selection
+            clearAllSelections();
+
+            // Update drag handlers
+            updateDragHandlers();
+        }
+
+        // Function to Merge Selected Cells Vertically
+        function mergeSelectedCellsVertically(selectedCells) {
+            const table = document.getElementById('dynamicTable');
+            const firstCell = selectedCells[0];
+            const cellIndex = firstCell.cellIndex;
+            const startRow = firstCell.parentElement.rowIndex;
+            const count = selectedCells.length;
+
+            // Check for existing merged cells in the range
+            for (let i = startRow; i < startRow + count; i++) {
+                const cell = table.rows[i].cells[cellIndex];
+                if (cell && (cell.hasAttribute('colspan') || cell.hasAttribute('rowspan'))) {
+                    alert('Cannot merge cells that are already merged.');
+                    return;
+                }
+            }
+
+            // Set rowspan and mark as merged
+            firstCell.setAttribute('rowspan', count);
+            firstCell.classList.add('merged-cell');
+
+            // Remove cells from other rows
+            for (let i = 1; i < count; i++) {
+                const row = table.rows[startRow + i];
+                if (row) {
+                    row.deleteCell(cellIndex);
+                }
+            }
+
+            // Clear selection
+            clearAllSelections();
+
+            // Update drag handlers
+            updateDragHandlers();
+        }
+
+        function unmergeCell(cell) {
+            if (!cell || !cell.classList.contains('merged-cell')) return;
+
+            const table = cell.closest('table');
+            const rowIndex = cell.parentElement.rowIndex;
+            const cellIndex = cell.cellIndex;
+
+            const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+            const rowspan = parseInt(cell.getAttribute('rowspan')) || 1;
+
+            // Remove merged cell attributes
+            cell.removeAttribute('colspan');
+            cell.removeAttribute('rowspan');
+            cell.classList.remove('merged-cell');
+
+            // Restore horizontal cells
+            for (let i = 1; i < colspan; i++) {
+                const newCell = cell.parentElement.insertCell(cellIndex + i);
+                newCell.setAttribute('contenteditable', 'true');
+                newCell.textContent = ''; // Initialize with empty content
+            }
+
+            // Restore vertical cells
+            for (let i = 1; i < rowspan; i++) {
+                const row = table.rows[rowIndex + i];
+                if (!row) continue;
+                const newCell = row.insertCell(cellIndex);
+                newCell.setAttribute('contenteditable', 'true');
+                newCell.textContent = ''; // Initialize with empty content
+
+                // Add cells for colspan if any
+                for (let j = 1; j < colspan; j++) {
+                    const additionalCell = row.insertCell(cellIndex + j);
+                    additionalCell.setAttribute('contenteditable', 'true');
+                    additionalCell.textContent = ''; // Initialize with empty content
+                }
+            }
+
+            // Update drag handlers to account for the restored cells
+            updateDragHandlers();
+
+            hideContextMenu();
+        }
+
+        function clearAllSelections() {
+            const cells = document.querySelectorAll(
+                '.dynamic-table td.selected, .dynamic-table th.selected, .dynamic-table td.merge-target, .dynamic-table th.merge-target'
+            );
+            cells.forEach(cell => cell.classList.remove('selected', 'merge-target'));
+            activeCell = null;
+        }
+
+        // Formula handling
+        function showFormulaModal() {
+            updateFormulaColumnOptions();
+            $('#formulaModal').modal('show');
+        }
+
+        function updateFormulaColumnOptions() {
+            const headers = Array.from(document.querySelectorAll('#dynamicTable thead th'))
+                .map(th => th.textContent.trim());
+
+            const options = headers.map((header, index) =>
+                `<option value="${header}">${header}</option>`
+            ).join('');
+
+            $('#formulaColumn1').html(options);
+            $('#formulaColumn2').html(options);
+        }
+
+        function applyFormula() {
+            const columnName = document.getElementById('formulaColumnName').value;
+            const formulaType = document.getElementById('formulaType').value;
+            const column1 = document.getElementById('formulaColumn1').value;
+            const column2 = document.getElementById('formulaColumn2').value;
+            const customFormula = document.getElementById('customFormula')?.value;
+
+            if (!columnName) {
+                alert('Please enter a column name');
+                return;
+            }
+
+            const table = document.getElementById('dynamicTable');
+
+            // Add header
+            const headerRow = table.querySelector('thead tr');
+            const newHeader = document.createElement('th');
+            newHeader.textContent = columnName;
+            newHeader.setAttribute('data-formula', formulaType);
+            newHeader.setAttribute('data-col1', column1);
+            newHeader.setAttribute('data-col2', column2);
+            if (formulaType === 'custom') {
+                newHeader.setAttribute('data-custom-formula', customFormula);
+            }
+            newHeader.setAttribute('draggable', 'true');
+            newHeader.addEventListener('dragstart', handleHeaderDragStart);
+            newHeader.addEventListener('dragover', dragOver);
+            newHeader.addEventListener('drop', drop);
+            newHeader.addEventListener('dragend', dragEnd);
+            headerRow.appendChild(newHeader);
+
+            // Add formula cells
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cell = document.createElement('td');
+                cell.setAttribute('data-is-formula', 'true');
+                cell.setAttribute('contenteditable', 'false'); // Formula cells are not editable
+                row.appendChild(cell);
+            });
+
+            // Calculate formula results
+            calculateFormulaResults();
+
+            $('#formulaModal').modal('hide');
+        }
+
+        function calculateFormulaResults() {
+            const table = document.getElementById('dynamicTable');
+            const headers = Array.from(table.querySelectorAll('thead th'));
+
+            headers.forEach((header, colIndex) => {
+                const formula = header.getAttribute('data-formula');
+                if (!formula) return;
+
+                const col1 = header.getAttribute('data-col1');
+                const col2 = header.getAttribute('data-col2');
+                const customFormula = header.getAttribute('data-custom-formula');
+
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const cell = row.cells[colIndex];
+                    if (!cell) return;
+
+                    const value1 = getColumnValue(row, col1);
+                    const value2 = getColumnValue(row, col2);
+
+                    cell.textContent = calculateFormula(value1, value2, formula, customFormula);
+                });
+            });
+        }
+
+        function getColumnValue(row, columnName) {
+            const headerRow = document.querySelector('#dynamicTable thead tr');
+            const headers = Array.from(headerRow.cells);
+            const columnIndex = headers.findIndex(th => th.textContent.trim() === columnName);
+            if (columnIndex === -1) return 0;
+
+            const cell = row.cells[columnIndex];
+            if (!cell) return 0;
+
+            const value = cell.textContent.trim() || '0';
+            return parseFloat(value.replace(/[^0-9.-]+/g, '')) || 0;
+        }
+
+        function calculateFormula(value1, value2, formulaType, customFormula) {
+            try {
+                switch (formulaType) {
+                    case 'sum':
+                        return (value1 + value2).toFixed(2);
+                    case 'multiply':
+                        return (value1 * value2).toFixed(2);
+                    case 'divide':
+                        return value2 !== 0 ? (value1 / value2).toFixed(2) : 'Error';
+                    case 'subtract':
+                        return (value1 - value2).toFixed(2);
+                    case 'percentage':
+                        return value2 !== 0 ? ((value1 / value2) * 100).toFixed(2) + '%' : 'Error';
+                    case 'custom':
+                        if (!customFormula) return 'Error';
+                        // Replace col1 and col2 with actual values in the custom formula
+                        const formula = customFormula
+                            .replace(/col1/g, value1)
+                            .replace(/col2/g, value2);
+                        return eval(formula).toFixed(2);
+                    default:
+                        return 'Error';
+                }
+            } catch (error) {
+                console.error('Formula calculation error:', error);
+                return 'Error';
+            }
+        }
+
+        function createFile() {
+            const fileName = document.getElementById('fileName').value;
+            const parentFolder = document.getElementById('parentFolder').value;
+            const table = document.getElementById('dynamicTable');
+
+            if (!fileName) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Please enter a file name'
+                });
+                return;
+            }
+
+            try {
+                // Show loading indicator
+                Swal.fire({
+                    title: 'Saving...',
+                    text: 'Please wait while we save your file',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // Get headers correctly
+                const headerRows = Array.from(table.querySelectorAll('thead tr')).map(row => {
+                    return Array.from(row.cells).map(cell => ({
+                        value: cell.textContent.trim(),
+                        field: cell.getAttribute('data-field') || 'custom',
+                        table_name: cell.getAttribute('data-table') || null,
+                        colspan: cell.getAttribute('colspan') || "1",
+                        rowspan: cell.getAttribute('rowspan') || "1",
+                        merged: cell.classList.contains('merged-cell').toString(),
+                        formula: cell.getAttribute('data-formula') || null,
+                        formulaCol1: cell.getAttribute('data-col1') || null,
+                        formulaCol2: cell.getAttribute('data-col2') || null,
+                        customFormula: cell.getAttribute('data-custom-formula') || null
+                    }));
+                });
+
+                // Get all body rows correctly
+                const bodyRows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
+                    return Array.from(row.cells).map(cell => ({
+                        value: cell.textContent.trim() || null,
+                        colspan: cell.getAttribute('colspan') || "1",
+                        rowspan: cell.getAttribute('rowspan') || "1",
+                        merged: cell.classList.contains('merged-cell').toString(),
+                        formula: (cell.getAttribute('data-is-formula') === 'true').toString()
+                    }));
+                });
+
+                // Get used fields
+                const usedFields = Array.from(table.querySelectorAll('thead th[data-field]')).map(th => ({
+                    table_name: th.getAttribute('data-table') || null,
+                    field_name: th.getAttribute('data-field')
+                }));
+
+                // Create the final data structure
+                const tableData = {
+                    headerRows: headerRows,
+                    rows: bodyRows,
+                    usedFields: usedFields,
+                    dataMapping: dataMapping || {}
+                };
+
+                // Log the data before sending (for debugging)
+                console.log('Table data to be sent:', JSON.stringify(tableData, null, 2));
+
+                // Make the AJAX request
+                $.ajax({
+                    url: "{{ route('MiniReportB1.store') }}",
+                    method: 'POST',
+                    data: {
+                        file_name: fileName,
+                        parent_id: parentFolder,
+                        table_data: tableData,
+                        _token: $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Success!',
+                                text: response.msg,
+                                showConfirmButton: false,
+                                timer: 1500
+                            }).then(() => {
+                                if (response.data && response.data.redirect_url) {
+                                    window.location.href = response.data.redirect_url;
+                                }
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: response.msg || 'Error saving file'
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Save error:', error);
+                        console.error('Response:', xhr.responseText);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Error saving file: ' + error
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('Error preparing data:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error preparing file data: ' + error.message
+                });
+            }
+        }
+        // Drag and drop functionality
+        function handleHeaderDragStart(e) {
+            const th = e.target.closest('th');
+            if (!th) return;
+
+            isColumnDragging = true;
+            draggedColumnIndex = th.cellIndex;
+            th.classList.add('column-dragging');
+
+            e.dataTransfer.setData('text/plain', ''); // Empty data for swapping columns
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const th = e.target.closest('th');
+            if (th) {
+                th.classList.add('column-drag-over');
+            }
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            e.stopPropagation(); // Prevent the event from bubbling up to the table's drop handler
+            const th = e.target.closest('th');
+            if (!th) return;
+
+            th.classList.remove('column-drag-over');
+            const targetIndex = th.cellIndex;
+
+            // Handle column swapping
+            if (isColumnDragging) {
+                if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) {
+                    return;
+                }
+
+                const table = document.getElementById('dynamicTable');
+
+                // Check for merged cells in either source or target columns
+                for (let i = 0; i < table.rows.length; i++) {
+                    const sourceCell = table.rows[i].cells[draggedColumnIndex];
+                    const targetCell = table.rows[i].cells[targetIndex];
+
+                    if (sourceCell && (sourceCell.hasAttribute('colspan') || sourceCell.hasAttribute('rowspan'))) {
+                        alert('Cannot swap columns with merged cells.');
+                        return;
+                    }
+
+                    if (targetCell && (targetCell.hasAttribute('colspan') || targetCell.hasAttribute('rowspan'))) {
+                        alert('Cannot swap columns with merged cells.');
+                        return;
+                    }
+                }
+
+                Array.from(table.rows).forEach(row => {
+                    const sourceCell = row.cells[draggedColumnIndex];
+                    const targetCell = row.cells[targetIndex];
+
+                    if (!sourceCell || !targetCell) return;
+
+                    // Swap their HTML content
+                    const tempHtml = sourceCell.innerHTML;
+                    sourceCell.innerHTML = targetCell.innerHTML;
+                    targetCell.innerHTML = tempHtml;
+
+                    // Swap their attributes
+                    const sourceAttrs = Array.from(sourceCell.attributes);
+                    const targetAttrs = Array.from(targetCell.attributes);
+
+                    // Clear all attributes
+                    while (sourceCell.attributes.length > 0) {
+                        sourceCell.removeAttribute(sourceCell.attributes[0].name);
+                    }
+                    while (targetCell.attributes.length > 0) {
+                        targetCell.removeAttribute(targetCell.attributes[0].name);
+                    }
+
+                    // Set target attributes on source
+                    targetAttrs.forEach(attr => {
+                        sourceCell.setAttribute(attr.name, attr.value);
+                    });
+
+                    // Set source attributes on target
+                    sourceAttrs.forEach(attr => {
+                        targetCell.setAttribute(attr.name, attr.value);
+                    });
+                });
+
+                // Track the change
+                tableChanges.columns.push({
+                    from: draggedColumnIndex,
+                    to: targetIndex,
+                    timestamp: new Date().getTime()
+                });
+            }
+        }
+
+        function dragEnd() {
+            const draggingColumn = document.querySelector('.column-dragging');
+            if (draggingColumn) {
+                draggingColumn.classList.remove('column-dragging');
+            }
+            draggedColumnIndex = null;
+            isColumnDragging = false;
+
+            document.querySelectorAll('.column-drag-over').forEach(el => {
+                el.classList.remove('column-drag-over');
+            });
+        }
+
+        // Additional context menu options
+        function editHeader() {
+            if (!activeCell || activeCell.tagName.toLowerCase() !== 'th') return;
+
+            const currentText = activeCell.textContent;
+            const newText = prompt('Enter new header text:', currentText);
+
+            if (newText && newText !== currentText) {
+                activeCell.textContent = newText;
+                hideContextMenu();
+            }
+        }
+
+        function deleteHeaderRow() {
+            if (!activeCell) return;
+
+            const headerRow = activeCell.closest('tr');
+            if (!headerRow || headerRow.parentElement.tagName.toLowerCase() !== 'thead') return;
+
+            // Don't allow deleting the last header row
+            const thead = headerRow.parentElement;
+            if (thead.rows.length <= 1) {
+                alert('Cannot delete the last header row.');
+                return;
+            }
+
+            if (confirm('Are you sure you want to delete this header row?')) {
+                headerRow.remove();
+                hideContextMenu();
+            }
+        }
+
+        // Field dragging functionality
+        function fieldDragStart(event) {
+            isColumnDragging = false;
+            event.dataTransfer.setData('text/plain', event.target.dataset.field);
+        }
+
+        function handleFieldDrop(event) {
+            event.preventDefault();
+            const field = event.dataTransfer.getData('text/plain');
+            const target = event.target.closest('th, td');
+
+            if (!field) return; // Do nothing if no field is being dragged (i.e., column swapping)
+
+            if (target) {
+                // If dropping on header, create new column
+                if (target.tagName.toLowerCase() === 'th') {
+                    insertColumnWithField(field, target.cellIndex);
+                } else {
+                    // If dropping on cell, just update the cell
+                    target.textContent = field;
+                    target.setAttribute('data-field', field);
+                }
+            }
+        }
+
+        function insertColumnWithField(field, index) {
+            const table = document.getElementById('dynamicTable');
+            const headerRow = table.querySelector('thead tr');
+
+            // Create new header cell
+            const newHeader = document.createElement('th');
+            newHeader.textContent = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
+
+            // Get table name from the field item
+            const fieldItem = document.querySelector(`.field-item[data-field="${field}"]`);
+            const tableName = fieldItem ? fieldItem.closest('.card').querySelector('.btn-link').textContent.trim() : '';
+
+            // Set all necessary attributes
+            newHeader.setAttribute('data-field', field);
+            newHeader.setAttribute('data-table', tableName);
+            newHeader.setAttribute('draggable', 'true');
+            newHeader.addEventListener('dragstart', handleHeaderDragStart);
+            newHeader.addEventListener('dragover', dragOver);
+            newHeader.addEventListener('drop', drop);
+            newHeader.addEventListener('dragend', dragEnd);
+
+            // Insert header at specified index
+            if (index === undefined || index >= headerRow.cells.length) {
+                headerRow.appendChild(newHeader);
+                index = headerRow.cells.length - 1;
+            } else {
+                const referenceCell = headerRow.cells[index];
+                headerRow.insertBefore(newHeader, referenceCell);
+            }
+
+            // Add cells to all rows with corresponding data
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach((row, rowIndex) => {
+                // Check for rowspan in previous rows
+                let skip = false;
+                for (let i = 0; i < rowIndex; i++) {
+                    const aboveRow = table.rows[i];
+                    const aboveCell = aboveRow.cells[index];
+                    if (aboveCell && aboveCell.hasAttribute('rowspan')) {
+                        const span = parseInt(aboveCell.getAttribute('rowspan'));
+                        if (rowIndex < i + span) {
+                            skip = true;
+                            break;
+                        }
+                    }
+                }
+                if (skip) return;
+
+                const newCell = row.insertCell(index);
+                newCell.setAttribute('contenteditable', 'true');
+
+                // Get the corresponding data from dataMapping
+                if (dataMapping[field] && dataMapping[field][rowIndex] !== undefined) {
+                    let value = dataMapping[field][rowIndex];
+
+                    // Format the value based on field type
+                    switch (field) {
+                        case 'date':
+                        case 'exchange_date':
+                            value = value ? new Date(value).toLocaleDateString() : '';
+                            break;
+                        case 'total':
+                        case 'tax_amount':
+                        case 'khr_rate':
+                        case 'thb_rate':
+                            value = value ? Number(value).toFixed(2) : '0.00';
+                            break;
+                        default:
+                            value = value || '';
+                    }
+
+                    newCell.textContent = value;
+                }
+            });
+
+            // Update event listeners
+            updateDragHandlers();
+        }
+
+        function updateDragHandlers() {
+            const table = document.getElementById('dynamicTable');
+            const headers = table.querySelectorAll('th');
+
+            headers.forEach(th => {
+                th.setAttribute('draggable', 'true');
+                th.removeEventListener('dragstart', handleHeaderDragStart);
+                th.removeEventListener('dragover', dragOver);
+                th.removeEventListener('drop', drop);
+                th.removeEventListener('dragend', dragEnd);
+
+                th.addEventListener('dragstart', handleHeaderDragStart);
+                th.addEventListener('dragover', dragOver);
+                th.addEventListener('drop', drop);
+                th.addEventListener('dragend', dragEnd);
+            });
+        }
+
+        // Add these event listeners to your initialization code
+        function initializeDragAndDrop() {
+            const table = document.getElementById('dynamicTable');
+
+            table.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            table.addEventListener('drop', handleFieldDrop);
+
+            updateDragHandlers();
+        }
+
+        // Add this at the top of your JavaScript section
+        const dataMapping = @json($rawData['dataMapping']);
+
+        // Update the selectColumnType function
+        function selectColumnType(field, label) {
+            insertColumnWithField(field);
+        }
+
+        //----------------------------------------
+
+        let isSelecting = false;
+        let selectionStart = null;
+
+        function handleCellClick(e) {
+            const cell = e.target.closest('td, th');
+            if (!cell) return;
+
+            // Clear previous selections if not dragging or shift-clicking
+            if (!e.shiftKey) {
+                clearAllSelections();
+            }
+
+            // Start cell selection
+            selectionStart = cell;
+            cell.classList.add('selected');
+            activeCell = cell;
+
+            // Update context menu options
+            const unmergeOption = document.querySelector('.unmerge-option');
+            if (unmergeOption) {
+                unmergeOption.style.display = cell.classList.contains('merged-cell') ? 'block' : 'none';
+            }
+        }
+
+        // Add mouse move handler for drag selection
+        document.getElementById('dynamicTable').addEventListener('mousedown', (e) => {
+            const cell = e.target.closest('td, th');
+            if (!cell) return;
+            isSelecting = true;
+            if (!e.shiftKey) {
+                clearAllSelections();
+            }
+            selectionStart = cell;
+            cell.classList.add('selected');
+        });
+
+        document.getElementById('dynamicTable').addEventListener('mousemove', (e) => {
+            if (!isSelecting || !selectionStart) return;
+
+            const currentCell = e.target.closest('td, th');
+            if (!currentCell) return;
+
+            const table = document.getElementById('dynamicTable');
+            const startRow = selectionStart.parentElement.rowIndex;
+            const startCol = selectionStart.cellIndex;
+            const currentRow = currentCell.parentElement.rowIndex;
+            const currentCol = currentCell.cellIndex;
+
+            // Clear previous selections but keep the start cell selected
+            document.querySelectorAll('.selected').forEach(cell => {
+                if (cell !== selectionStart) {
+                    cell.classList.remove('selected');
+                }
+            });
+
+            // Select all cells in the range
+            const minRow = Math.min(startRow, currentRow);
+            const maxRow = Math.max(startRow, currentRow);
+            const minCol = Math.min(startCol, currentCol);
+            const maxCol = Math.max(startCol, currentCol);
+
+            for (let i = minRow; i <= maxRow; i++) {
+                for (let j = minCol; j <= maxCol; j++) {
+                    const cell = table.rows[i].cells[j];
+                    if (cell) {
+                        cell.classList.add('selected');
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isSelecting = false;
+        });
+
+        function showMergeOptions() {
+            const selectedCells = document.querySelectorAll('.selected');
+            if (selectedCells.length < 2) {
+                alert('Please select at least two cells to merge.');
+                return;
+            }
+
+            // Check if the selection is valid (rectangular)
+            const isValidSelection = validateSelection(selectedCells);
+            if (!isValidSelection) {
+                alert('Please select a valid rectangular range of cells to merge.');
+                return;
+            }
+
+            mergeSelectedCellsAutomatically();
+        }
+
+        function validateSelection(selectedCells) {
+            const rows = new Set();
+            const cols = new Set();
+
+            selectedCells.forEach(cell => {
+                rows.add(cell.parentElement.rowIndex);
+                cols.add(cell.cellIndex);
+            });
+
+            const rowsArray = Array.from(rows);
+            const colsArray = Array.from(cols);
+
+            // Check if selection forms a rectangle
+            const expectedCellCount = rowsArray.length * colsArray.length;
+            return selectedCells.length === expectedCellCount &&
+                rowsArray.every((row, i) => i === 0 || row === rowsArray[i - 1] + 1) &&
+                colsArray.every((col, i) => i === 0 || col === colsArray[i - 1] + 1);
+        }
+
+        function mergeSelectedCellsAutomatically() {
+            const table = document.getElementById('dynamicTable');
+            const selectedCells = table.querySelectorAll('.selected');
+
+            if (selectedCells.length < 2) {
+                alert('Please select at least two cells to merge.');
+                return;
+            }
+
+            // Determine merge direction based on selection shape
+            const rows = new Set();
+            const cols = new Set();
+            selectedCells.forEach(cell => {
+                rows.add(cell.parentElement.rowIndex);
+                cols.add(cell.cellIndex);
+            });
+
+            const rowCount = rows.size;
+            const colCount = cols.size;
+
+            // Get the first cell (top-left) of selection
+            const firstCell = selectedCells[0];
+            const startRow = Math.min(...Array.from(rows));
+            const startCol = Math.min(...Array.from(cols));
+
+            // Check for existing merged cells in the selection
+            for (let i = startRow; i < startRow + rowCount; i++) {
+                for (let j = startCol; j < startCol + colCount; j++) {
+                    const cell = table.rows[i].cells[j];
+                    if (cell && (cell.hasAttribute('colspan') || cell.hasAttribute('rowspan'))) {
+                        alert('Cannot merge selection containing already merged cells.');
+                        return;
+                    }
+                }
+            }
+
+            // Set colspan and rowspan on the first cell
+            firstCell.setAttribute('rowspan', rowCount);
+            firstCell.setAttribute('colspan', colCount);
+            firstCell.classList.add('merged-cell');
+
+            // Store the content from the first non-empty cell
+            let mergedContent = '';
+            selectedCells.forEach(cell => {
+                if (!mergedContent && cell.textContent.trim()) {
+                    mergedContent = cell.textContent.trim();
+                }
+            });
+            firstCell.textContent = mergedContent;
+
+            // Remove other cells
+            selectedCells.forEach(cell => {
+                if (cell !== firstCell) {
+                    cell.remove();
+                }
+            });
+
+            // Clear selection
+            clearAllSelections();
+            hideContextMenu();
+
+            // Update drag handlers
+            updateDragHandlers();
+        }
+    </script>
+
+
+@endsection

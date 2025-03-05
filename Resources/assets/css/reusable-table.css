@@ -1,0 +1,114 @@
+/* Reusable Table Component Styles */
+.reusable-table-container {
+    overflow-x: auto;
+    margin: 16px ;
+    background-color: white;
+}
+
+.reusable-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 14px;
+    background-color: white;
+}
+
+.reusable-table th,
+.reusable-table td {
+    word-break: break-word;
+    white-space: normal;
+    padding: 8px;
+    border: 1px solid #000;
+    background-color: white;
+}
+
+/* Column width presets */
+.reusable-table .col-xs {
+    width: 5%;
+}
+
+.reusable-table .col-sm {
+    width: 10%;
+}
+
+.reusable-table .col-md {
+    width: 15%;
+}
+
+.reusable-table .col-lg {
+    width: 25%;
+}
+
+.reusable-table .col-xl {
+    width: 35%;
+}
+
+/* Utility classes */
+.reusable-table .text-center {
+    text-align: center;
+}
+
+.reusable-table .text-right {
+    text-align: right;
+}
+
+.reusable-table .number {
+    text-align: center;
+    font-family: monospace;
+}
+
+.reusable-table .img-cell {
+    text-align: center;
+}
+
+.reusable-table .img-cell img {
+    max-width: 60px;
+    height: 60px;
+    object-fit: contain;
+}
+
+
+.filter-container {
+    margin: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+
+/* Responsive styles */
+@media screen and (max-width: 768px) {
+    .reusable-table {
+        font-size: 12px;
+    }
+
+    .reusable-table th,
+    .reusable-table td {
+        padding: 6px;
+    }
+    
+    .reusable-table .img-cell img {
+        max-width: 40px;
+        height: 40px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .reusable-table {
+        font-size: 11px;
+    }
+
+    .reusable-table th,
+    .reusable-table td {
+        padding: 4px;
+    }
+}
+

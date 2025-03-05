@@ -1,0 +1,874 @@
+<?php
+
+namespace Modules\MiniReportB1\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use App\User;
+use App\Contact;
+use App\Product;
+use App\Audit;
+use App\BusinessLocation;
+use Yajra\DataTables\Facades\DataTables;
+use Modules\MiniReportB1\Entities\MiniReportB1;
+use Modules\MiniReportB1\Entities\MiniReportB1Category;
+use Modules\ModuleCreateModule\Entities\ModuleCreator;
+use App\Utils\BusinessUtil;
+use App\Utils\TransactionUtil;
+use App\Utils\ModuleUtil;
+use Modules\MiniReportB1\Entities\MiniReportB1Folder;
+use Modules\MiniReportB1\Entities\MiniReportB1File;
+use Modules\MiniReportB1\Http\Controllers\SaleController;
+use Modules\MiniReportB1\Entities\Report;
+use PDF;
+use App\Utils\ProductUtil;
+
+
+
+class MiniReportB1Controller extends Controller
+{
+    protected $transactionUtil;
+    protected $businessUtil;
+    protected $moduleUtil;
+    protected $salesData;
+    protected $productUtil;
+
+
+    /**
+     * Constructor
+     */
+    public function __construct(
+        ProductUtil $productUtil,
+        TransactionUtil $transactionUtil,
+        BusinessUtil $businessUtil,
+        ModuleUtil $moduleUtil,
+        SaleController $salesData
+    ) {
+        $this->productUtil = $productUtil;
+        $this->transactionUtil = $transactionUtil;
+        $this->businessUtil = $businessUtil;
+        $this->moduleUtil = $moduleUtil;
+        $this->salesData = $salesData;
+    }
+
+    public function getConsolidatedData()
+    {
+        try {
+            $business_id = request()->session()->get('user.business_id');
+
+            // Initialize main data structure
+            $consolidatedData = [
+                'categories' => [],
+                'dataMapping' => [],
+            ];
+
+            // 1. Get Purchase Data
+            $purchaseData = $this->getPurchaseData($business_id);
+            $consolidatedData['categories']['purchase'] = $purchaseData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $purchaseData['dataMapping']);
+
+            // 2. Get Sales Data
+            $salesData = $this->getSalesData($business_id);
+            $consolidatedData['categories']['sales'] = $salesData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $salesData['dataMapping']);
+
+            // 3. Get Product Data
+            $productData = $this->getProductData($business_id);
+            $consolidatedData['categories']['product'] = $productData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $productData['dataMapping']);
+
+            // 4. Get Customer Data
+            $customerData = $this->getCustomerData($business_id);
+            $consolidatedData['categories']['customer'] = $customerData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $customerData['dataMapping']);
+
+            // 5. Get Supplier Data
+            $supplierData = $this->getSupplierData($business_id);
+            $consolidatedData['categories']['supplier'] = $supplierData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $supplierData['dataMapping']);
+
+            // 6. Get Staff Data
+            $staffData = $this->getStaffData($business_id);
+            $consolidatedData['categories']['staff'] = $staffData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $staffData['dataMapping']);
+
+            // 7. Get Expense Data
+            $expenseData = $this->getExpenseData($business_id);
+            $consolidatedData['categories']['expense'] = $expenseData['categories'];
+            $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $expenseData['dataMapping']);
+
+            return $consolidatedData;
+        } catch (\Exception $e) {
+            \Log::error("Error in getConsolidatedData: " . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            throw $e;
+        }
+    }
+
+    protected function getSalesData($business_id)
+    {
+        $sales = $this->transactionUtil->getListSells($business_id);
+
+        $sales->leftJoin('business_locations', 'transactions.location_id', '=', 'business_locations.id')
+            ->leftJoin('contacts as customers', 'transactions.contact_id', '=', 'customers.id')
+            ->leftJoin('users', 'transactions.created_by', '=', 'users.id')
+            ->leftJoin('tax_rates', 'transactions.tax_id', '=', 'tax_rates.id')
+            ->leftJoin('transaction_payments', 'transactions.id', '=', 'transaction_payments.transaction_id');
+
+        // Add select fields for sales
+        $sales->select([
+            'transactions.transaction_date',
+            'transactions.invoice_no',
+            'transactions.final_total',
+            'transactions.tax_amount',
+            'transactions.discount_amount',
+            'transactions.payment_status',
+            'business_locations.name as location_name',
+            'customers.name as customer_name',
+            'customers.email as customer_email',
+            'customers.mobile as customer_mobile',
+            'tax_rates.name as tax_rate_name',
+            DB::raw('SUM(transaction_payments.amount) as amount_paid'),
+            DB::raw('(transactions.final_total - COALESCE(SUM(transaction_payments.amount), 0)) as payment_due')
+        ]);
+
+        $sales->groupBy('transactions.id');
+        $salesData = $sales->get();
+
+        return [
+            'categories' => [
+                'date' => ['transaction_date'],
+                'invoice' => ['invoice_no'],
+                'customer_info' => ['customer_name', 'customer_email', 'customer_mobile'],
+                'location' => ['location_name'],
+                'financial' => ['final_total', 'tax_amount', 'discount_amount', 'amount_paid', 'payment_due'],
+                'status' => ['payment_status']
+            ],
+            'dataMapping' => $this->formatDataForMapping($salesData)
+        ];
+    }
+
+    protected function getProductData($business_id)
+    {
+        $products = Product::where('business_id', $business_id)
+            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+            ->leftJoin('brands', 'products.brand_id', '=', 'brands.id')
+            ->leftJoin('units', 'products.unit_id', '=', 'units.id')
+            ->select([
+                'products.name',
+                'products.sku',
+                'products.alert_quantity',
+                'products.warranty_id',
+                'products.selling_price',
+                'products.purchase_price',
+                'categories.name as category_name',
+                'brands.name as brand_name',
+                'units.actual_name as unit_name'
+            ])->get();
+
+        return [
+            'categories' => [
+                'basic_info' => ['name', 'sku'],
+                'pricing' => ['selling_price', 'purchase_price'],
+                'inventory' => ['alert_quantity'],
+                'classification' => ['category_name', 'brand_name', 'unit_name']
+            ],
+            'dataMapping' => $this->formatDataForMapping($products)
+        ];
+    }
+
+    protected function getCustomerData($business_id)
+    {
+        $customers = Contact::where('business_id', $business_id)
+            ->where('type', 'customer')
+            ->select([
+                'name',
+                'supplier_business_name',
+                'email',
+                'mobile',
+                'address_line_1',
+                'address_line_2',
+                'city',
+                'state',
+                'country',
+                'zip_code',
+                'tax_number',
+                'credit_limit',
+                'created_at'
+            ])->get();
+
+        return [
+            'categories' => [
+                'basic_info' => ['name', 'supplier_business_name', 'email', 'mobile'],
+                'address' => ['address_line_1', 'address_line_2', 'city', 'state', 'country', 'zip_code'],
+                'financial' => ['tax_number', 'credit_limit'],
+                'dates' => ['created_at']
+            ],
+            'dataMapping' => $this->formatDataForMapping($customers)
+        ];
+    }
+
+    protected function getStaffData($business_id)
+    {
+        $staff = User::where('business_id', $business_id)
+            ->leftJoin('role_user', 'users.id', '=', 'role_user.user_id')
+            ->leftJoin('roles', 'role_user.role_id', '=', 'roles.id')
+            ->select([
+                'users.username',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.contact_no',
+                'roles.name as role_name',
+                'users.status',
+                'users.created_at'
+            ])->get();
+
+        return [
+            'categories' => [
+                'basic_info' => ['username', 'first_name', 'last_name', 'email', 'contact_no'],
+                'role' => ['role_name'],
+                'status' => ['status'],
+                'dates' => ['created_at']
+            ],
+            'dataMapping' => $this->formatDataForMapping($staff)
+        ];
+    }
+
+    protected function getExpenseData($business_id)
+    {
+        $expenses = Transaction::where('business_id', $business_id)
+            ->where('type', 'expense')
+            ->leftJoin('expense_categories', 'transactions.expense_category_id', '=', 'expense_categories.id')
+            ->leftJoin('users', 'transactions.created_by', '=', 'users.id')
+            ->leftJoin('business_locations', 'transactions.location_id', '=', 'business_locations.id')
+            ->select([
+                'transactions.transaction_date',
+                'transactions.ref_no',
+                'transactions.final_total',
+                'transactions.payment_status',
+                'expense_categories.name as category_name',
+                'transactions.additional_notes',
+                'users.username as created_by',
+                'business_locations.name as location_name'
+            ])->get();
+
+        return [
+            'categories' => [
+                'basic_info' => ['transaction_date', 'ref_no', 'category_name'],
+                'financial' => ['final_total', 'payment_status'],
+                'location' => ['location_name'],
+                'notes' => ['additional_notes'],
+                'user' => ['created_by']
+            ],
+            'dataMapping' => $this->formatDataForMapping($expenses)
+        ];
+    }
+
+    protected function formatDataForMapping($data)
+    {
+        $mapping = [];
+        if ($data->isEmpty()) return $mapping;
+
+        foreach ($data[0]->getAttributes() as $key => $value) {
+            $mapping[$key] = $data->pluck($key)->toArray();
+        }
+
+        return $mapping;
+    }
+
+    public function indexs()
+    {
+        try {
+            $business_id = request()->session()->get('user.business_id');
+
+            // Get consolidated data
+            $consolidatedData = $this->getConsolidatedData();
+
+            // Get folders for the view
+            $folders = MiniReportB1Folder::where('business_id', $business_id)
+                ->where('type', 'report_section')
+                ->get();
+
+            // Prepare additional view data
+            $viewData = [
+                'folders' => $folders,
+                'rawData' => $consolidatedData,
+                'business_locations' => BusinessLocation::forDropdown($business_id),
+                'orderStatuses' => $this->productUtil->orderStatuses(),
+                'payment_status_array' => $this->transactionUtil->payment_status_dropdown(),
+                'expense_categories' => ExpenseCategory::where('business_id', $business_id)->pluck('name', 'id')
+            ];
+
+            // Return view with data
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $consolidatedData,
+                ]);
+            }
+
+            return view('minireportb1::MiniReportB1.create', $viewData);
+        } catch (\Exception $e) {
+            \Log::error("Error in index: " . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => __('messages.something_went_wrong')
+                ]);
+            }
+
+            return back()->with('status', [
+                'success' => false,
+                'msg' => __('messages.something_went_wrong')
+            ]);
+        }
+    }
+
+    public function dashboard()
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        // $module = ModuleCreator::where('module_name', 'minireportb1')->first();
+
+        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
+
+        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Get the totals
+        $total_minireportb1 = MiniReportB1::where('business_id', $business_id)->count();
+        $total_minireportb1_category = MiniReportB1Category::where('business_id', $business_id)->count();
+
+        // Get category data
+        $minireportb1_category = DB::table('minireportb1_main as minireportb1')
+            ->leftJoin('minireportb1_category as minireportb1category', 'minireportb1.category_id', '=', 'minireportb1category.id')
+            ->select(
+                DB::raw('COUNT(minireportb1.id) as total'),
+                'minireportb1category.name as category'
+            )
+            ->where('minireportb1.business_id', $business_id)
+            ->groupBy('minireportb1category.id')
+            ->get();
+
+        // Get folders ordered by their order field
+        $folders = MiniReportB1Folder::where('business_id', $business_id)
+            ->orderBy('order')
+            ->get();
+
+        // Get files
+        $files = MiniReportB1File::where('business_id', $business_id)->get();
+
+        return view('minireportb1::MiniReportB1.dashboard')
+            ->with(compact(
+                'total_minireportb1',
+                'total_minireportb1_category',
+                'minireportb1_category',
+                // 'module',
+                'folders',
+                'files'
+            ));
+    }
+
+    public function index()
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        // $module = ModuleCreator::where('module_name', 'minireportb1')->first();
+
+        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
+
+        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Get the totals
+        $total_minireportb1 = MiniReportB1::where('business_id', $business_id)->count();
+        $total_minireportb1_category = MiniReportB1Category::where('business_id', $business_id)->count();
+
+        // Get category data
+        $minireportb1_category = DB::table('minireportb1_main as minireportb1')
+            ->leftJoin('minireportb1_category as minireportb1category', 'minireportb1.category_id', '=', 'minireportb1category.id')
+            ->select(
+                DB::raw('COUNT(minireportb1.id) as total'),
+                'minireportb1category.name as category'
+            )
+            ->where('minireportb1.business_id', $business_id)
+            ->groupBy('minireportb1category.id')
+            ->get();
+
+        // Get folders ordered by their order field
+        $folders = MiniReportB1Folder::where('business_id', $business_id)
+            ->orderBy('order')
+            ->get();
+
+        // Get files
+        $files = MiniReportB1File::where('business_id', $business_id)->get();
+
+        return view('minireportb1::MiniReportB1.dashboard')
+            ->with(compact(
+                'total_minireportb1',
+                'total_minireportb1_category',
+                'minireportb1_category',
+                // 'module',
+                'folders',
+                'files'
+            ));
+    }
+
+    public function create()
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        // Get folders of type 'report_section'
+        $folders = MiniReportB1Folder::where('business_id', $business_id)
+            ->where('type', 'report_section')
+            ->get();
+
+        // Get reports and organize their fields by table
+        $reports = Report::with('fields')
+            ->where('business_id', $business_id)
+            ->get();
+
+        // Extract all unique table-field combinations from reports
+        $tableFields = $reports->flatMap(function ($report) {
+            return $report->fields->map(function ($field) {
+                return [
+                    'table_name' => $field->table_name,
+                    'field_name' => $field->field_name
+                ];
+            });
+        })->unique(function ($item) {
+            return $item['table_name'] . '.' . $item['field_name'];
+        })->values();
+
+        // Get the raw data based on selected tables and fields
+        $rawData = $this->salesData->getRawSalesData($tableFields, 0, 5);
+
+        // Initialize data mapping
+        $dataMapping = [];
+
+        // Create data mapping for selected fields
+        foreach ($rawData as $row) {
+            $rowArray = (array)$row;
+
+            foreach ($tableFields as $field) {
+                $fieldName = $field['field_name'];
+
+                if (!isset($dataMapping[$fieldName])) {
+                    $dataMapping[$fieldName] = [];
+                }
+
+                $value = $rowArray[$fieldName] ?? null;
+
+                // Format value based on field name pattern
+                if (str_contains($fieldName, 'date')) {
+                    $dataMapping[$fieldName][] = $value ? date('d/m/Y', strtotime($value)) : '';
+                } else if (str_contains($fieldName, 'amount') || str_contains($fieldName, 'total')) {
+                    $dataMapping[$fieldName][] = $value !== null ? number_format($value, 2) : '';
+                } else {
+                    $dataMapping[$fieldName][] = $value ?? '';
+                }
+            }
+        }
+
+        // Organize fields into dynamic categories based on table names
+        $categories = $tableFields->groupBy('table_name')
+            ->map(function ($fields) {
+                return $fields->pluck('field_name')->toArray();
+            })
+            ->toArray();
+
+        // Prepare the final data structure
+        $viewData = [
+            'categories' => $categories,
+            'dataMapping' => $dataMapping,
+            'reports' => $reports->map(function ($report) {
+                return [
+                    'report_id' => $report->id,
+                    'business_id' => $report->business_id,
+                    'name' => $report->name,
+                    'fields' => $report->fields->map(function ($field) {
+                        return [
+                            'table_name' => $field->table_name,
+                            'field_name' => $field->field_name,
+                        ];
+                    })->toArray(),
+                ];
+            })->toArray(),
+        ];
+
+        // Format initial data for view
+        $formatted_data = [];
+        if (!empty($rawData)) {
+            $defaultDateField = collect($tableFields)
+                ->firstWhere(function ($field) {
+                    return str_contains($field['field_name'], 'date');
+                });
+
+            $formatted_data = collect($rawData)->map(function ($row) use ($defaultDateField) {
+                $rowArray = (array)$row;
+                $dateValue = $defaultDateField
+                    ? ($rowArray[$defaultDateField['field_name']] ?? date('d/m/Y'))
+                    : date('d/m/Y');
+
+                return ['date' => $dateValue];
+            })->toArray();
+        }
+
+        return view('minireportb1::MiniReportB1.create', [
+            'folders' => $folders,
+            'rawData' => $viewData,
+            'formatted_data' => $formatted_data
+        ]);
+    }
+
+    public function show($id)
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        $module = ModuleCreator::where('module_name', 'minireportb1')->first();
+
+        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
+
+        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $minireportb1 = MiniReportB1::where('business_id', $business_id)->findOrFail($id);
+
+        return view('minireportb1::MiniReportB1.show')->with(compact('minireportb1'));
+    }
+
+    public function store(Request $request)
+    {
+        try {
+            \Log::info('Received file creation request', $request->all());
+
+            $request->validate([
+                'file_name' => 'required|string|max:255',
+                'parent_id' => 'required|integer',
+                'table_data' => 'required|array'
+            ]);
+
+            $business_id = request()->session()->get('user.business_id');
+
+            DB::beginTransaction();
+
+            $file = new MiniReportB1File();
+            $file->business_id = $business_id;
+            $file->file_name = $request->file_name;
+            $file->parent_id = $request->parent_id;
+            $file->layout = json_encode($request->table_data);
+
+            if (!$file->save()) {
+                throw new \Exception('Failed to save file record');
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'msg' => 'File created successfully',
+                'data' => [
+                    'id' => $file->id,
+                    'file_name' => $file->file_name,
+                    'redirect_url' => route('MiniReportB1.viewFile', $file->id)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Error in store method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'msg' => 'Error saving file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function edit(Request $request, $id)
+    {
+        $business_id = request()->session()->get('user.business_id');
+        $type = $request->query('type');
+        $module = ModuleCreator::where('module_name', 'minireportb1')->first();
+
+        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
+
+        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
+            abort(403, 'Unauthorized action.');
+        }
+
+
+
+        $minireportb1 = MiniReportB1::find($id);
+        $minireportb1_categories = MiniReportB1Category::forDropdown($business_id);
+        $users = User::forDropdown($business_id, false);
+        $customer = Contact::where('business_id', $business_id)
+            ->where('type', 'customer')
+            ->pluck('name', 'id');
+        $supplier = Contact::where('business_id', $business_id)
+            ->where('type', 'supplier')
+            ->pluck('supplier_business_name', 'id');
+        $product = Product::where('business_id', $business_id)
+            ->pluck('name', 'id');
+        $business_locations = BusinessLocation::forDropdown($business_id, false);
+        return view('minireportb1::MiniReportB1.edit', compact('minireportb1', 'minireportb1_categories', 'users', 'customer', 'supplier', 'product', 'business_locations'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'minireportb1_category_id' => 'nullable|integer',
+
+
+
+
+
+
+            'Date_1' => 'nullable',
+
+
+            'Title_1' => 'nullable',
+
+        ]);
+
+        try {
+            $minireportb1 = MiniReportB1::find($id);
+            $minireportb1->category_id = $request->minireportb1_category_id;
+            $minireportb1->created_by = auth()->user()->id;
+
+
+
+
+
+
+            $minireportb1->{'Date_1'} = $request->{'Date_1'};
+
+
+            $minireportb1->{'Title_1'} = $request->{'Title_1'};
+
+
+
+            $minireportb1->save();
+
+
+            return response()->json(['success' => true, 'msg' => __('minireportb1::lang.updated_successfully')]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'msg' => __('messages.something_went_wrong')]);
+        }
+    }
+
+
+
+    public function destroy($id)
+    {
+        try {
+            MiniReportB1::destroy($id);
+            return response()->json(['success' => true, 'msg' => __('minireportb1::lang.deleted_successfully')]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'msg' => __('messages.something_went_wrong')]);
+        }
+    }
+
+    public function getCategories(Request $request)
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        $module = ModuleCreator::where('module_name', 'minireportb1')->first();
+
+        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
+
+        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        if (request()->ajax()) {
+            $categories = MiniReportB1Category::where('business_id', $business_id)->get();
+
+            return DataTables::of($categories)
+                ->addColumn('action', function ($row) {
+                    $html = '<button class="btn btn-xs btn-info btn-modal" data-href="' . route('MiniReportB1-categories.edit', $row->id) . '" data-container=".category_modal"><i class="fa fa-edit"></i> ' . __('messages.edit') . '</button>';
+                    $html .= ' <button class="btn btn-xs btn-danger delete-category" data-href="' . route('MiniReportB1-categories.destroy', $row->id) . '"><i class="fa fa-trash"></i> ' . __('messages.delete') . '</button>';
+                    return $html;
+                })
+                ->rawColumns(['action'])
+                ->make(true);
+        }
+
+        return view('minireportb1::Category.index')->with(compact('module'));
+    }
+
+    public function viewFile($id)
+    {
+        try {
+            $business_id = request()->session()->get('user.business_id');
+
+            // Get the file with validation
+            $file = MiniReportB1File::where('business_id', $business_id)
+                ->where('id', $id)
+                ->firstOrFail();
+
+            // Decode the layout JSON
+            $layout = json_decode($file->layout, true);
+
+            // Extract components from layout
+            $headerRows = $layout['headerRows'] ?? [];
+            $rows = $layout['rows'] ?? [];
+            $usedFields = $layout['usedFields'] ?? [];
+            $dataMapping = $layout['dataMapping'] ?? [];
+
+            // Get filter parameters from the request
+            $filters = request()->only(array_keys($this->getDynamicFields($headerRows)));
+
+            // Get pagination parameters from the request
+            $page = request()->get('page', 1);
+            $perPage = request()->get('per_page', 25); // Default to 25 rows per page
+
+            // Retrieve filtered raw data from the database
+            $rawData = $this->salesData->getRawSalesData($usedFields, $filters);
+
+            // Merge raw data with the layout rows
+            $allRows = $this->mergeRawDataWithRows($rows, $rawData, $dataMapping);
+
+            // Calculate total pages
+            $totalRows = count($allRows);
+            $totalPages = ceil($totalRows / $perPage);
+
+            // Slice the rows for the current page
+            $startIndex = ($page - 1) * $perPage;
+            $rows = array_slice($allRows, $startIndex, $perPage);
+
+            // Get dynamic fields and their possible values for filtering
+            $dynamicFields = $this->getDynamicFields($headerRows);
+            $fieldOptions = $this->getFieldOptions($allRows, $dynamicFields);
+
+            $business_locations = null;
+            return view('minireportb1::MiniReportB1.view', compact(
+                'file',
+                'headerRows',
+                'rows',
+                'usedFields',
+                'dataMapping',
+                'filters',
+                'page',
+                'perPage',
+                'totalPages',
+                'totalRows',
+                'dynamicFields', // Pass dynamic fields to the view
+                'fieldOptions'   // Pass field options to the view
+            ));
+        } catch (\Exception $e) {
+            \Log::error('Error in viewFile method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->back()->with('error', 'Error loading file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get dynamic fields for filtering.
+     */
+    private function getDynamicFields($headerRows)
+    {
+        $dynamicFields = [];
+
+        foreach ($headerRows as $headerRow) {
+            foreach ($headerRow as $header) {
+                $field = $header['field'] ?? null;
+                if ($field) {
+                    $dynamicFields[$field] = ucfirst(str_replace('_', ' ', $field));
+                }
+            }
+        }
+
+        return $dynamicFields;
+    }
+
+    /**
+     * Get possible values for each field.
+     */
+    private function getFieldOptions($rows, $dynamicFields)
+    {
+        $fieldOptions = [];
+
+        foreach ($dynamicFields as $field => $label) {
+            $options = [];
+            foreach ($rows as $row) {
+                if (isset($row[$field])) {
+                    $options[$row[$field]] = $row[$field];
+                }
+            }
+            $fieldOptions[$field] = array_unique($options);
+        }
+
+        return $fieldOptions;
+    }
+
+    private function mergeRawDataWithRows($rows, $rawData, $dataMapping)
+    {
+        $rawDataArray = $rawData->toArray();
+        $mergedRows = [];
+
+        foreach ($rawDataArray as $dataRow) {
+            $newRow = [];
+            foreach ($rows[0] as $cell) { // Use first row as template
+                $newCell = array_merge([], $cell); // Clone cell structure
+
+                // Get field name from cell
+                $fieldName = $cell['field'] ?? null;
+                if ($fieldName && isset($dataRow->$fieldName)) {
+                    $value = $dataRow->$fieldName;
+
+                    // Format based on field type
+                    if (str_contains($fieldName, 'date')) {
+                        $newCell['value'] = date('Y-m-d', strtotime($value));
+                    } elseif (str_contains($fieldName, 'amount') || str_contains($fieldName, 'total')) {
+                        $newCell['value'] = number_format((float)$value, 2);
+                    } else {
+                        $newCell['value'] = $value;
+                    }
+                }
+
+                $newRow[] = $newCell;
+            }
+            $mergedRows[] = $newRow;
+        }
+
+        return $mergedRows;
+    }
+
+    protected function applyColumnFilter($rawData, $columns)
+    {
+        try {
+            $filteredData = [];
+
+            foreach ($rawData['data'] as $row) {
+                $filteredRow = [];
+                foreach ($columns as $column) {
+                    $field = $column['field'];
+                    $filteredRow[$field] = $row[$field] ?? '';
+                }
+                $filteredData[] = $filteredRow;
+            }
+
+            return $filteredData;
+        } catch (\Exception $e) {
+            \Log::error('Error applying column filter', [
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+}

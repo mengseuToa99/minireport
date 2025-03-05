@@ -1,0 +1,23 @@
+{
+    "name": "nwidart/minireportb1",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": ["Modules\\MiniReportB1\\Providers\\MiniReportB1ServiceProvider"],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\MiniReportB1\\": ""
+        }
+    }
+}

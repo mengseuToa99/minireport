@@ -1,0 +1,370 @@
+@extends('layouts.app')
+
+
+
+@section('css')
+    <style>
+        /* Base styles */
+        .content-wrapper {
+            margin-left: 0px;
+            /* Adjust this value to match your sidebar width */
+            padding: 15px;
+            transition: margin-left 0.3s ease-in-out;
+        }
+
+        /* Collapsed sidebar state */
+        body.sidebar-collapse .content-wrapper {
+            margin-left: 50px;
+            /* Adjust this value to match the collapsed sidebar width */
+        }
+
+        .view-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .view-table th,
+        .view-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .view-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+
+        .view-table tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .view-table tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .merged-cell {
+            background-color: #f8f9fa;
+            text-align: center;
+        }
+
+        .formula-cell {
+            background-color: #e8f4ff;
+            font-style: italic;
+        }
+
+        .file-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 5px;
+            padding: 10px 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-label {
+            font-weight: bold;
+            width: 120px;
+        }
+
+        .table-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        .action-buttons {
+            margin-bottom: 20px;
+            padding: 10px 0;
+        }
+
+        .action-buttons .btn {
+            margin-right: 10px;
+        }
+
+        .box-filters {
+            margin-bottom: 20px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .content-wrapper {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            body.sidebar-collapse .content-wrapper {
+                margin-left: 0;
+            }
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+
+        /* New Pagination Styles */
+        .pagination\:container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .arrow\:text {
+            display: block;
+            vertical-align: middle;
+            font-size: 13px;
+            margin: 0 5px;
+            color: #f3f3f3;
+        }
+
+        .pagination\:number {
+            --size: 32px;
+            --margin: 6px;
+            margin: 0 var(--margin);
+            border-radius: 6px;
+            background: #202020;
+            max-width: auto;
+            min-width: var(--size);
+            height: var(--size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0 6px;
+            color: #f3f3f3;
+            text-decoration: none;
+        }
+
+        .pagination\:number:hover {
+            background: #2a2a2a;
+        }
+
+        .pagination\:number.pagination\:active {
+            background: #2a2a2a;
+            position: relative;
+        }
+
+        .pagination\:number.arrow {
+            display: flex;
+            align-items: center;
+            background: #202020;
+        }
+
+        .pagination\:number.arrow:hover {
+            background: #2a2a2a;
+        }
+
+        .hide {
+            display: none;
+            visibility: hidden;
+            height: 0;
+        }
+
+        /* SVG Icons */
+        .pagination-icon {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+    </style>
+@endsection
+
+@section('content')
+    <!-- Content Wrapper. Contains page content -->
+    <div class="content-wrapper">
+        <!-- Content Header (Page header) -->
+        <section class="content-header">
+            {{-- <h1>{{ $file->file_name }}</h1> --}}
+        </section>
+
+        <!-- Main content -->
+        <section class="content">
+            <!-- Back Button and Actions -->
+            <div class="action-buttons">
+                <a href="{{ route('MiniReportB1.index') }}" class="btn btn-sm btn-primary">
+                    <i class="fa fa-arrow-left"></i> Back
+                </a>
+            </div>
+
+            <!-- Collapsible Filter Section -->
+            @component('components.filters', ['title' => __('Filter')])
+                <div class="row">
+                    @foreach ($dynamicFields as $field => $label)
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                {!! Form::label($field, $label . ':') !!}
+                                {!! Form::select($field, ['' => __('lang_v1.all')] + $fieldOptions[$field], request()->get($field), [
+                                    'class' => 'form-control select2',
+                                    'style' => 'width:100%',
+                                ]) !!}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="row">
+                    <div class="col-md-12 text-right">
+                        <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                        <button class="btn btn-primary" onclick="clearFilters()">Clear Filters</button>
+                        <button class="fa fa-print btn btn-primary" onclick="window.print()">Print </button>
+                    </div>
+                </div>
+            @endcomponent
+
+            <!-- File Information -->
+            <div class="info-row">
+                <span class="info-label">File Name:</span>
+                <span>{{ $file->file_name }}</span>
+            </div>
+
+            <!-- Table Display -->
+            <div class="table-container">
+                <table class="view-table" id="dataTable">
+                    <thead>
+                        @foreach ($headerRows as $headerRow)
+                            <tr>
+                                @foreach ($headerRow as $header)
+                                    <th @if ($header['colspan'] > 1) colspan="{{ $header['colspan'] }}" @endif
+                                        @if ($header['rowspan'] > 1) rowspan="{{ $header['rowspan'] }}" @endif
+                                        @if ($header['merged']) class="merged-cell" @endif
+                                        title="{{ $header['table_name'] ? $header['table_name'] . '.' . $header['field'] : $header['field'] }}">
+                                        {{ $header['value'] }}
+                                    </th>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </thead>
+                    <tbody>
+                        @foreach ($rows as $row)
+                            <tr>
+                                @foreach ($row as $cell)
+                                    <td @if ($cell['colspan'] > 1) colspan="{{ $cell['colspan'] }}" @endif
+                                        @if ($cell['rowspan'] > 1) rowspan="{{ $cell['rowspan'] }}" @endif
+                                        @if ($cell['merged']) class="merged-cell" @endif
+                                        @if ($cell['formula']) class="formula-cell" @endif>
+                                        {{ $cell['value'] }}
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- New Pagination Section -->
+            <div class="pagination:container">
+                <!-- Previous Page Link -->
+                <a href="{{ $page > 1 ? route('MiniReportB1.viewFile', ['id' => $file->id, 'page' => $page - 1, 'per_page' => $perPage] + $filters) : '#' }}"
+                    class="pagination:number arrow {{ $page <= 1 ? 'disabled' : '' }}">
+                    <svg class="pagination-icon">
+                        <path d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    <span class="arrow:text">Previous</span>
+                </a>
+
+                <!-- First Page -->
+                @if ($page > 3)
+                    <a href="{{ route('MiniReportB1.viewFile', ['id' => $file->id, 'page' => 1, 'per_page' => $perPage] + $filters) }}"
+                        class="pagination:number">1</a>
+                    @if ($page > 4)
+                        <div class="pagination:number">...</div>
+                    @endif
+                @endif
+
+                <!-- Page Numbers -->
+                @for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++)
+                    <a href="{{ route('MiniReportB1.viewFile', ['id' => $file->id, 'page' => $i, 'per_page' => $perPage] + $filters) }}"
+                        class="pagination:number {{ $page == $i ? 'pagination:active' : '' }}">
+                        {{ $i }}
+                    </a>
+                @endfor
+
+                <!-- Last Page -->
+                @if ($page < $totalPages - 2)
+                    @if ($page < $totalPages - 3)
+                        <div class="pagination:number">...</div>
+                    @endif
+                    <a href="{{ route('MiniReportB1.viewFile', ['id' => $file->id, 'page' => $totalPages, 'per_page' => $perPage] + $filters) }}"
+                        class="pagination:number">{{ $totalPages }}</a>
+                @endif
+
+                <!-- Next Page Link -->
+                <a href="{{ $page < $totalPages ? route('MiniReportB1.viewFile', ['id' => $file->id, 'page' => $page + 1, 'per_page' => $perPage] + $filters) : '#' }}"
+                    class="pagination:number arrow {{ $page >= $totalPages ? 'disabled' : '' }}">
+                    <span class="arrow:text">Next</span>
+                    <svg class="pagination-icon">
+                        <path d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </div>
+
+            <!-- SVG Definitions -->
+            <svg class="hide">
+                <symbol id="left" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </symbol>
+                <symbol id="right" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </symbol>
+            </svg>
+        </section>
+    </div>
+@endsection
+
+@section('javascript')
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script>
+        function applyFilters() {
+            const filters = {};
+
+            // Collect filter values from dynamic dropdowns
+            @foreach ($dynamicFields as $field => $label)
+                filters['{{ $field }}'] = document.getElementById('{{ $field }}').value;
+            @endforeach
+
+            // Build URL with filters
+            let url = '{{ route('MiniReportB1.viewFile', ['id' => $file->id]) }}';
+            const queryParams = new URLSearchParams(filters).toString();
+            url += `?${queryParams}`;
+
+            window.location.href = url;
+        }
+
+        function clearFilters() {
+            window.location.href = '{{ route('MiniReportB1.viewFile', ['id' => $file->id]) }}';
+        }
+
+        function exportToExcel() {
+            /* Get table */
+            var table = document.getElementById('dataTable');
+
+            /* Convert table to worksheet */
+            var wb = XLSX.utils.table_to_book(table, {
+                sheet: "Sheet JS"
+            });
+
+            /* Generate Excel file */
+            XLSX.writeFile(wb, '{{ $file->file_name }}.xlsx');
+        }
+    </script>
+@endsection

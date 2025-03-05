@@ -1,0 +1,15 @@
+{
+    "name": "MiniReportB1",
+    "alias": "minireportb1",
+    "description": "MiniReportB1 Module",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\MiniReportB1\\Providers\\MiniReportB1ServiceProvider"
+    ],
+    "files": [],
+    "active": 1,
+    "order": 0,
+    "aliases": {},
+    "requires": []
+}
