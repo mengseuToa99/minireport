@@ -1,4 +1,4 @@
-@extends('minireportb1::layouts.master2')
+@extends('layouts.app')
 @section('title', __('lang_v1.product_sell_report'))
 
 @section('content')
@@ -210,7 +210,9 @@
 @endsection
 
 @section('javascript')
-    <script src="{{ asset('js/report.js?v=' . $asset_v) }}"></script>
+    <!-- <script src="{{ asset('js/report.js?v=' . $asset_v) }}"></script> -->
+    <script src="{{ asset('modules/minireportb1/js/Report.js') }}"></script>
+
     <script type="text/javascript">
         $(
         '#product_sell_report_form #location_id, #product_sell_report_form #customer_id, #psr_filter_brand_id, #psr_filter_category_id, #psr_customer_group_id'
@@ -337,7 +339,5 @@
                     }
                 });
             });
-
-            const tablename = '#product_sell_report_table';
     </script>
 @endsection

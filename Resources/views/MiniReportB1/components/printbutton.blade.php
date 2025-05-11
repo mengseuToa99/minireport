@@ -1,338 +1,761 @@
-<!-- resources/views/print-layout.blade.php -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Layout</title>
-    <!-- Include Font Awesome CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .card {
-            background: #fff;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .card-header {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .draggable { position: absolute; cursor: move; }
-        #logo { width: 100px; height: 50px; background: #f0f0f0; text-align: center; line-height: 50px; }
-        #companyName { width: 200px; height: 30px; background: #f0f0f0; text-align: center; line-height: 30px; }
-        #printButton { margin-top: 20px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        #designButton { margin-top: 20px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-        .dropdown-checkbox { position: relative; display: inline-block; }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: #f9f9f9;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 1;
-            padding: 10px;
-        }
-        .dropdown-checkbox:hover .dropdown-content { display: block; }
-        .flex-container { display: flex; gap: 10px; align-items: center; }
+{{-- print button animation --}}
+<style>
+    button.print-button {
+        width: 50px;
+        height: 50px;
+    }
 
-        /* Floating Button Styles */
-        .floating-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 80px;
-            height: 80px;
-            background-color: rgb(255, 0, 0);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-        }
-        .floating-button:hover {
-            background-color: rgb(173, 0, 0);
-        }
+    span.print-icon,
+    span.print-icon::before,
+    span.print-icon::after,
+    button.print-button:hover .print-icon::after {
+        border: solid 2px #0f8800;
+    }
 
-        /* Layout Options Container */
-        .layout-options {
-            position: fixed;
-            top: 120px;
-            right: 20px;
-            background-color: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            display: none;
-            z-index: 1000;
-        }
-        .layout-options.show {
-            display: block;
-        }
+    span.print-icon::after {
+        border-width: 1px;
+    }
 
-        @media print {
-            .no-print {
-                display: none !important; /* Hide elements with the .no-print class */
-            }
-            .draggable {
-                position: absolute !important; /* Ensure draggable elements respect their positions */
-            }
-            .session-2 {
-                position: relative; /* Ensure the container respects the draggable elements */
-            }
-            .floating-button, .layout-options {
-                display: none !important; /* Hide floating button and layout options during printing */
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Session 2: Draggable Elements Container -->
-    <div class="card session-2">
-        <div class="card-header"></div>
-        <div style="position: relative; min-height: 150px;">
-            <div class="draggable"></div>
-            <div class="draggable"></div>
-        </div>
+    button.print-button {
+        margin-top: 8px;
+        position: relative;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    span.print-icon,
+    span.print-icon::before,
+    span.print-icon::after,
+    button.print-button:hover .print-icon::after {
+        box-sizing: border-box;
+        background-color: #fff;
+    }
+
+    span.print-icon {
+        position: relative;
+        display: inline-block;
+        padding: 0;
+        margin-top: 20%;
+        width: 60%;
+        height: 35%;
+        background: #fff;
+        border-radius: 20% 20% 0 0;
+    }
+
+    span.print-icon::before {
+        content: "";
+        position: absolute;
+        bottom: 100%;
+        left: 12%;
+        right: 12%;
+        height: 110%;
+        transition: height .2s .15s;
+    }
+
+    span.print-icon::after {
+        content: "";
+        position: absolute;
+        top: 55%;
+        left: 12%;
+        right: 12%;
+        height: 0%;
+        background: #fff;
+        background-repeat: no-repeat;
+        background-size: 70% 90%;
+        background-position: center;
+        background-image: linear-gradient(to top,
+                #fff 0, #fff 14%,
+                #0f8800 14%, #0f8800 28%,
+                #fff 28%, #fff 42%,
+                #0f8800 42%, #0f8800 56%,
+                #fff 56%, #fff 70%,
+                #0f8800 70%, #0f8800 84%,
+                #fff 84%, #fff 100%);
+        transition: height .2s, border-width 0s .2s, width 0s .2s;
+    }
+
+    button.print-button:hover {
+        cursor: pointer;
+    }
+
+    button.print-button:hover .print-icon::before {
+        height: 0px;
+        transition: height .2s;
+    }
+
+    button.print-button:hover .print-icon::after {
+        height: 120%;
+        transition: height .2s .15s, border-width 0s .16s;
+    }
+
+    a {
+  color: inherit;          /* Inherits text color instead of default blue/purple */
+  text-decoration: none;   /* Removes underline */
+}
+
+/* Optional: Reset different link states (hover, active, visited, focus) */
+a:hover,
+a:active,
+a:visited,
+a:focus {
+  color: inherit;         /* Prevents purple for visited links */
+  text-decoration: none;  /* Ensures no underline appears on hover/focus */
+}
+</style>
+
+{{-- Hidden div to store the business info for JavaScript access --}}
+@php
+    // Get the business directly from the model for reliability
+    $business_id = session('user.business_id');
+    $directBusiness = \App\Business::find($business_id);
+    $directLogoPath = $directBusiness && $directBusiness->logo ? '/uploads/business_logos/' . $directBusiness->logo : '';
+@endphp
+<div id="business-info" style="display: flex; align-items: center; margin-bottom: 10px;">
+    @if($directBusiness && $directBusiness->logo)
+   
+    @endif
+    <div style="display: none;">
+        Business data: {{ $business_name ?? ($directBusiness->name ?? '') }}
     </div>
+</div>
 
-    <!-- Card for Table -->
-    <div class="card">
-        {{ $tableContent ?? '' }}
-    </div>
+<button class="print-button" id="print-button" title="Print Report">
+    <span class="print-icon"></span>
+</button>
 
-    <!-- Card for Components Container -->
-    <div class="card">
-        <div class="card-header">Components</div>
-        <div id="components-container"></div>
-    </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const printButton = document.getElementById('print-button');
+    
+    if (!printButton) return;
+    
+    // Find business info directly from the page - more robust approach
+    function getBusinessInfo() {
+        // Get business name and logo from various possible locations
+        let businessName = '';
+        let businessLogo = '';
 
-    <!-- Floating Button -->
-    <div class="floating-button no-print" onclick="toggleLayoutOptions()">
-        <i class="fa fa-print" style="font-size: 30px;"></i> <!-- Font Awesome printer icon -->
-    </div>
-
-    <!-- Layout Options Container -->
-    <div class="layout-options no-print">
-        <div class="flex-container">
-            <div class="form-group">
-                <label for="show_rows" style="display: block; font-size: 24px; color: #333;">Design Layout</label>
-                <div class="dropdown">
-                    <select class="form-control" id="layoutSelect" name="layout_type"
-                        style="font-size: 24px; width: 220px; cursor: pointer;" aria-haspopup="true"
-                        aria-expanded="false">
-                        <option value="">Select Layout</option>
-                    </select>
-                </div>
-                <!-- Buttons Container -->
-                <div class="buttons-container">
-                    <button id="designButton" class="btn-primary" onclick="window.location.href='/minireportb1/create-layout'">Design</button>
-                    <button id="printButton" class="btn-primary">Print</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Load jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <script>
-        $(function () {
-            // Fetch layouts on page load
-            fetchLayouts();
-
-            // Fetch logo and company name
-            fetchLayoutComponents();
-
-            // Make elements draggable
-            $('.draggable').draggable({
-                containment: '.session-2', // Restrict dragging to the Session 2 container
-                cursor: 'move',
-                stop: function (event, ui) {
-                    // Save the position of the draggable element
-                    $(this).data('position', ui.position);
-                }
-            });
-
-            // Print button click handler
-            $('#printButton').on('click', function () {
-                // Capture positions of draggable elements before printing
-                $('.draggable').each(function () {
-                    const position = $(this).position();
-                    $(this).css({
-                        top: position.top + 'px',
-                        left: position.left + 'px'
-                    });
-                });
-
-                // Trigger the print dialog
-                window.print();
-            });
-
-            // Handle checkbox change event
-            $('.dropdown-content input[type="checkbox"]').on('change', function () {
-                const elementId = $(this).val();
-                const element = $('#' + elementId);
-                if ($(this).is(':checked')) {
-                    element.show(); // Show the element
-                    restorePosition(element); // Restore its position
-                } else {
-                    savePosition(element); // Save its position before hiding
-                    element.hide(); // Hide the element
-                    adjustLayout(); // Adjust the layout after hiding
-                }
-            });
-
-            // Handle layout selection change
-            $('#layoutSelect').change(function () {
-                const selectedLayout = $(this).val();
-                console.log('Selected Layout:', selectedLayout); // Debugging
-                if (selectedLayout) {
-                    fetchLayoutComponents(selectedLayout);
-                }
-            });
-
-            // Function to save the position of an element
-            function savePosition(element) {
-                const position = element.position();
-                element.data('position', position); // Store the position in the element's data
+        // Try meta tags first (most reliable)
+        const businessNameMeta = document.querySelector('meta[name="business-name"]');
+        const businessLogoMeta = document.querySelector('meta[name="business-logo"]');
+        
+        if (businessNameMeta) {
+            businessName = businessNameMeta.getAttribute('content');
+        }
+        
+        if (businessLogoMeta) {
+            businessLogo = businessLogoMeta.getAttribute('content');
+        }
+        
+        // If meta tags didn't work, try looking for visible business elements
+        if (!businessName) {
+            const businessNameElement = document.querySelector('.business-name');
+            if (businessNameElement) {
+                businessName = businessNameElement.innerText.trim();
             }
-
-            // Function to restore the position of an element
-            function restorePosition(element) {
-                const position = element.data('position');
-                if (position) {
-                    element.css({ top: position.top, left: position.left }); // Restore the position
-                }
-            }
-
-            // Function to adjust the layout after hiding an element
-            function adjustLayout() {
-                const visibleElements = $('.draggable:visible'); // Get all visible draggable elements
-                let previousBottom = 0; // Track the bottom position of the previous element
-
-                visibleElements.each(function () {
-                    const element = $(this);
-                    const elementHeight = element.outerHeight(true); // Get the height of the element
-
-                    // Move the element to the top of the previous element's bottom position
-                    element.css({ top: previousBottom });
-                    previousBottom += elementHeight; // Update the bottom position for the next element
-                });
-            }
-
-            // Function to fetch layouts
-            function fetchLayouts() {
-                $.ajax({
-                    url: '/minireportb1/layouts', // Ensure this matches your backend route
-                    method: 'GET',
-                    dataType: 'json',
-                    success: function (response) {
-                        console.log('Layouts fetched:', response);
-                        if (response.success) {
-                            populateLayoutDropdown(response.layouts);
-                        } else {
-                            console.error('Error fetching layouts:', response.error);
-                            alert('Failed to load layout options.');
+        }
+        
+        // For logo, look for any business logo image on the page
+        if (!businessLogo) {
+            // Look in logo-test div first (our custom solution)
+            const logoTestImg = document.querySelector('.logo-test img');
+            if (logoTestImg && logoTestImg.src) {
+                businessLogo = logoTestImg.src;
+            } else {
+                // Try to find any logo that looks like a business logo
+                const possibleLogos = [
+                    ...document.querySelectorAll('img[src*="business_logos"]'),
+                    ...document.querySelectorAll('img[alt*="Logo"]'),
+                    ...document.querySelectorAll('.business-logo')
+                ];
+                
+                if (possibleLogos.length > 0) {
+                    for (const logo of possibleLogos) {
+                        if (logo.src) {
+                            businessLogo = logo.src;
+                            break;
                         }
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('Error fetching layouts:', error);
-                        alert('An error occurred while fetching layout options.');
                     }
-                });
+                }
             }
-
-            // Function to populate the layout dropdown
-            function populateLayoutDropdown(layouts) {
-                const dropdown = $('#layoutSelect');
-                dropdown.empty(); // Clear existing options
-                dropdown.append($('<option>', {
-                    value: '',
-                    text: 'Select Layout'
-                }));
-
-                layouts.forEach(function (layout) {
-                    dropdown.append($('<option>', {
-                        value: layout.layout_name, // Use layout_name as the value
-                        text: layout.layout_name // Use layout_name as the display text
-                    }));
-                });
-            }
-
-            // Function to fetch layout components
-            function fetchLayoutComponents(layoutName) {
-                console.log('Fetching components for layout:', layoutName); // Debugging
-                $.ajax({
-                    url: '/minireportb1/get-layout-components/' + layoutName , // Ensure this matches your backend route
-                    method: 'GET',
-                    dataType: 'json',
-                    success: function (response) {
-                        console.log('Components fetched:', response); // Debugging
-                        if (response.success) {
-                            displayComponents(response.components);
-                        } else {
-                            console.error('Error in response:', response.error);
-                            alert('Failed to load layout components: ' + response.error);
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('Error fetching components:', error);
-                        alert('An error occurred while fetching layout components.');
-                    }
-                });
-            }
-            // Function to display components
-            function displayComponents(components) {
-                const container = $('#components-container');
-                container.empty(); // Clear existing components
-                console.log('Displaying components:', components); // Debugging
-
-                components.forEach(function (component) {
-                    // Ensure the component has the required properties
-                    const element = $('<div>', {
-                        id: component.id,
-                        class: 'draggable',
-                        css: {
-                            left: component.x + 'px', // Ensure 'x' is returned by the backend
-                            top: component.y + 'px'  // Ensure 'y' is returned by the backend
-                        }
-                    });
-
-                    // Inject the HTML content
-                    if (component.content && component.content.html) {
-                        element.html(component.content.html);
-                    } else {
-                        element.text('Component'); // Fallback if no HTML content is available
-                    }
-
-                    container.append(element);
-                    element.draggable({
-                        containment: '.session-2', // Restrict dragging to the Session 2 container
-                        cursor: 'move'
-                    });
-
-                    // Show the component by default when a layout is selected
-                    element.show();
-                });
-            }
-        });
-
-        // Function to toggle layout options visibility
-        function toggleLayoutOptions() {
-            const layoutOptions = document.querySelector('.layout-options');
-            layoutOptions.classList.toggle('show');
         }
-    </script>
-</body>
-</html>
+        
+        return { name: businessName, logo: businessLogo };
+    }
+    
+    printButton.addEventListener('click', function() {
+        // Get business info directly rather than relying on specific DOM structure
+        const businessInfo = getBusinessInfo();
+        const businessName = businessInfo.name;
+        const businessLogo = businessInfo.logo;
+    
+        // Find main report elements
+        const mainTable = document.querySelector('.dataTable, .reusable-table, table.table');
+        
+        // Get report name - try multiple selectors to find the report name
+        let reportTitle = '';
+        const reportElements = [
+            document.querySelector('.report-subtitle b'),
+            document.querySelector('.normal-view-title:nth-child(2)'),
+            document.querySelector('.card-title'),
+            document.querySelector('title'),
+            document.querySelector('h1'),
+            document.querySelector('.page-title'),
+            document.querySelector('.report-name')
+        ];
+        
+        for (const element of reportElements) {
+            if (element && element.innerText) {
+                reportTitle = element.innerText.trim();
+                break;
+            }
+        }
+        
+        if (!reportTitle) {
+            reportTitle = 'Report';
+        }
+
+        // Remove business name from report title if it's appended at the end
+        if (reportTitle.endsWith(businessName) && businessName !== '') {
+            reportTitle = reportTitle.substring(0, reportTitle.length - businessName.length).trim();
+            // Remove any dash, hyphen or separator at the end
+            reportTitle = reportTitle.replace(/\s*[-—–]\s*$/, '');
+        }
+        
+        // Get date range info
+        let dateRangeText = '';
+        const reportDateElement = document.querySelector('.report-date');
+        
+        if (reportDateElement && reportDateElement.innerText) {
+            dateRangeText = `<p>Date Range: ${reportDateElement.innerText}</p>`;
+        } else {
+            // Try to get date filter values as fallback
+            const dateFilter = document.querySelector('[name="date_filter"]')?.value || '';
+            const startDate = document.querySelector('[name="start_date"]')?.value || '';
+            const endDate = document.querySelector('[name="end_date"]')?.value || '';
+            
+            if (startDate && endDate) {
+                dateRangeText = `Date Range: ${startDate} to ${endDate}`;
+            } else if (dateFilter) {
+                // Create more descriptive date ranges for standard filters
+                const today = new Date();
+                let fromDate = new Date();
+                let toDate = new Date();
+                
+                switch(dateFilter) {
+                    case 'today':
+                        dateRangeText = `Today (${today.toLocaleDateString()})`;
+                        break;
+                    case 'yesterday':
+                        fromDate.setDate(today.getDate() - 1);
+                        dateRangeText = `Yesterday (${fromDate.toLocaleDateString()})`;
+                        break;
+                    case 'this_week':
+                        fromDate.setDate(today.getDate() - today.getDay());
+                        dateRangeText = `This Week (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'this_month':
+                        fromDate.setDate(1);
+                        dateRangeText = `This Month (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'last_month':
+                        fromDate.setMonth(today.getMonth() - 1);
+                        fromDate.setDate(1);
+                        toDate.setDate(0); // Last day of previous month
+                        dateRangeText = `Last Month (${fromDate.toLocaleDateString()} to ${toDate.toLocaleDateString()})`;
+                        break;
+                    case 'last_3_months':
+                        fromDate.setMonth(today.getMonth() - 3);
+                        fromDate.setDate(1);
+                        dateRangeText = `Last 3 Months (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'last_6_months':
+                        fromDate.setMonth(today.getMonth() - 6);
+                        fromDate.setDate(1);
+                        dateRangeText = `Last 6 Months (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'this_quarter':
+                        fromDate.setMonth(Math.floor(today.getMonth() / 3) * 3);
+                        fromDate.setDate(1);
+                        dateRangeText = `This Quarter (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'last_quarter':
+                        fromDate.setMonth(Math.floor(today.getMonth() / 3) * 3 - 3);
+                        fromDate.setDate(1);
+                        toDate.setMonth(Math.floor(today.getMonth() / 3) * 3);
+                        toDate.setDate(0);
+                        dateRangeText = `Last Quarter (${fromDate.toLocaleDateString()} to ${toDate.toLocaleDateString()})`;
+                        break;
+                    case 'this_year':
+                        fromDate.setMonth(0);
+                        fromDate.setDate(1);
+                        dateRangeText = `This Year (${fromDate.toLocaleDateString()} to ${today.toLocaleDateString()})`;
+                        break;
+                    case 'last_year':
+                        fromDate.setFullYear(today.getFullYear() - 1);
+                        fromDate.setMonth(0);
+                        fromDate.setDate(1);
+                        toDate.setFullYear(today.getFullYear() - 1);
+                        toDate.setMonth(11);
+                        toDate.setDate(31);
+                        dateRangeText = `Last Year (${fromDate.toLocaleDateString()} to ${toDate.toLocaleDateString()})`;
+                        break;
+                    default:
+                        const filterMapping = {
+                            'today': 'Today',
+                            'this_month': 'This Month',
+                            'last_month': 'Last Month',
+                            'last_3_months': 'Last 3 Months',
+                            'last_6_months': 'Last 6 Months',
+                            'this_quarter': 'This Quarter',
+                            'last_quarter': 'Last Quarter',
+                            'this_year': 'This Year',
+                            'last_year': 'Last Year'
+                        };
+                        dateRangeText = `Date Filter: ${filterMapping[dateFilter] || dateFilter.replace(/_/g, ' ')}`;
+                }
+            }
+        }
+        
+        // Get any additional filters
+        let additionalFilters = '';
+        
+        // Employee/username filter
+        const usernameFilter = document.querySelector('#username_filter');
+        if (usernameFilter && usernameFilter.value) {
+            const selectedOption = usernameFilter.options[usernameFilter.selectedIndex];
+            if (selectedOption && selectedOption.text) {
+                additionalFilters += `<p>Employee: ${selectedOption.text.trim()}</p>`;
+            }
+        }
+        
+        if (!mainTable) {
+            // Fallback to simple print if no table found
+            window.print();
+            return;
+        }
+        
+        // Check if using DataTables
+        const isDataTable = typeof $.fn?.dataTable !== 'undefined' && 
+                           mainTable && 
+                           $.fn.dataTable.isDataTable(mainTable);
+        
+        if (isDataTable) {
+            // For DataTables
+            const table = $(mainTable).DataTable();
+            const oldPageLength = table.page.len();
+            const oldPage = table.page();
+            
+            // Show all data
+            table.page.len(-1).draw(false);
+            
+            setTimeout(function() {
+                // Copy the table with all data visible
+                const tableHtml = mainTable.outerHTML;
+                
+                // Create a new window with better styling
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>${reportTitle}</title>
+                        <style>
+                            body { 
+                                font-family: Arial, sans-serif; 
+                                margin: 20px; 
+                                padding: 0; 
+                                color: #333; 
+                            }
+                            .report-header {
+                                margin-bottom: 20px;
+                                display: flex;
+                                flex-wrap: wrap;
+                                justify-content: space-between;
+                                align-items: center;
+                                background-color: #f8f9fa;
+                                padding: 15px;
+                            }
+                            .header-left {
+                                display: flex;
+                                align-items: center;
+                                flex: 1;
+                            }
+                            .header-right {
+                                flex: 1;
+                                text-align: right;
+                            }
+                            .business-logo {
+                                max-height: 50px;
+                                max-width: 50px;
+                                margin-right: 15px;
+                            }
+                            .business-name {
+                                font-size: 20px;
+                                font-weight: 600;
+                            }
+                            .report-name {
+                                font-size: 22px;
+                                font-weight: 600;
+                                margin-bottom: 5px;
+                            }
+                            .date-range {
+                                font-size: 14px;
+                                margin-top: 5px;
+                            }
+                            .date-info {
+                                text-align: center;
+                                margin: 10px 0;
+                                font-size: 14px;
+                            }
+                            .table-container {
+                                width: 100%;
+                                overflow-x: auto;
+                                margin-bottom: 20px;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                font-size: 12px;
+                            }
+                            table th {
+                                background-color: #f8f9fa;
+                                border: 1px solid #dee2e6;
+                                padding: 8px;
+                                text-align: left;
+                                font-weight: bold;
+                            }
+                            table td {
+                                border: 1px solid #dee2e6;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                            table tr:nth-child(even) {
+                                background-color: #f9f9f9;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin: 20px 0;
+                            }
+                            .print-button-window {
+                                display: block;
+                                margin: 20px auto;
+                                padding: 10px 20px;
+                                background-color: #0f8800;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                font-size: 14px;
+                                cursor: pointer;
+                            }
+                            .top-controls {
+                                text-align: right;
+                                margin-bottom: 20px;
+                            }
+                            @media print {
+                                .print-button-window, .top-controls {
+                                    display: none;
+                                }
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                table th {
+                                    background-color: #f8f9fa !important;
+                                    color: #333 !important;
+                                    -webkit-print-color-adjust: exact;
+                                    print-color-adjust: exact;
+                                }
+                                table tr:nth-child(even) {
+                                    background-color: #f9f9f9 !important;
+                                    -webkit-print-color-adjust: exact;
+                                    print-color-adjust: exact;
+                                }
+                                thead {
+                                    display: table-header-group;
+                                }
+                                tr {
+                                    page-break-inside: avoid;
+                                }
+                                .report-header {
+                                    background-color: #f8f9fa !important;
+                                    -webkit-print-color-adjust: exact;
+                                    print-color-adjust: exact;
+                                }
+
+                                a {
+  color: inherit;          /* Inherits text color instead of default blue/purple */
+  text-decoration: none;   /* Removes underline */
+}
+
+/* Optional: Reset different link states (hover, active, visited, focus) */
+a:hover,
+a:active,
+a:visited,
+a:focus {
+  color: inherit;         /* Prevents purple for visited links */
+  text-decoration: none;  /* Ensures no underline appears on hover/focus */
+}
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="top-controls">
+                            <button class="print-button-window" onclick="window.print()">Print Report</button>
+                        </div>
+                        
+                        <div class="report-header">
+                            <div class="header-left">
+                                ${businessLogo ? `
+                                <img 
+                                    src="${businessLogo}" 
+                                    alt="${businessName || 'Business'} Logo" 
+                                    class="business-logo" 
+                                    onerror="this.style.display='none';" 
+                                    loading="lazy">
+                                ` : ''}
+                                <div class="business-name">${businessName || 'Business Name'}</div>
+                            </div>
+                            <div class="header-right">
+                                <div class="report-name">${reportTitle}</div>
+                                <div class="date-range">${dateRangeText.replace(/<p>/g, '').replace(/<\/p>/g, '')}</div>
+                                <div class="date-range">Printed on: ${new Date().toLocaleString()}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="date-info">
+                            ${additionalFilters}
+                        </div>
+                        
+                        <div class="table-container">
+                            ${tableHtml}
+                        </div>
+                        
+                        <div class="print-controls">
+                            <button class="print-button-window" onclick="window.print()">Print Report</button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                
+                // Reset DataTable to previous state
+                setTimeout(function() {
+                    table.page.len(oldPageLength).page(oldPage).draw(false);
+                }, 500);
+            }, 500);
+        } else {
+            // For regular tables
+            // Make a copy of the table to handle pagination
+            const tableClone = mainTable.cloneNode(true);
+            if (tableClone.tagName.toLowerCase() === 'div') {
+                // If the main table is actually a container div, find the table inside
+                const tableElement = tableClone.querySelector('table');
+                if (tableElement) {
+                    tableClone = tableElement;
+                }
+            }
+            
+            // Remove hidden rows for printing (important for category/product filtering)
+            const rowsToRemove = [];
+            const rows = tableClone.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                // Check if the row is hidden by style or by any filter
+                if (row.style.display === 'none') {
+                    rowsToRemove.push(row);
+                }
+            });
+            
+            // Remove the hidden rows from the clone
+            rowsToRemove.forEach(row => {
+                row.parentNode.removeChild(row);
+            });
+            
+            // Create a similar window but for standard tables
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>${reportTitle}</title>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 20px; 
+                            padding: 0; 
+                            color: #333; 
+                        }
+                        .report-header {
+                            margin-bottom: 20px;
+                            display: flex;
+                            flex-wrap: wrap;
+                            justify-content: space-between;
+                            align-items: center;
+                            background-color: #f8f9fa;
+                            padding: 15px;
+                        }
+                        .header-left {
+                            display: flex;
+                            align-items: center;
+                            flex: 1;
+                        }
+                        .header-right {
+                            flex: 1;
+                            text-align: right;
+                        }
+                        .business-logo {
+                            max-height: 50px;
+                            max-width: 50px;
+                            margin-right: 15px;
+                        }
+                        .business-name {
+                            font-size: 20px;
+                            font-weight: 600;
+                        }
+                        .report-name {
+                            font-size: 22px;
+                            font-weight: 600;
+                            margin-bottom: 5px;
+                        }
+                        .date-range {
+                            font-size: 14px;
+                            margin-top: 5px;
+                        }
+                        .date-info {
+                            text-align: center;
+                            margin: 10px 0;
+                            font-size: 14px;
+                        }
+                        .table-container {
+                            width: 100%;
+                            overflow-x: auto;
+                            margin-bottom: 20px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 12px;
+                        }
+                        table th {
+                            background-color: #f8f9fa;
+                            border: 1px solid #dee2e6;
+                            padding: 8px;
+                            text-align: left;
+                            font-weight: bold;
+                        }
+                        table td {
+                            border: 1px solid #dee2e6;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        table tr:nth-child(even) {
+                            background-color: #f9f9f9;
+                        }
+                        .print-controls {
+                            text-align: center;
+                            margin: 20px 0;
+                        }
+                        .print-button-window {
+                            display: block;
+                            margin: 20px auto;
+                            padding: 10px 20px;
+                            background-color: #0f8800;
+                            color: white;
+                            border: none;
+                            border-radius: 4px;
+                            font-size: 14px;
+                            cursor: pointer;
+                        }
+                        .top-controls {
+                            text-align: right;
+                            margin-bottom: 20px;
+                        }
+                        @media print {
+                            .print-button-window, .top-controls {
+                                display: none;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                            table th {
+                                background-color: #f8f9fa !important;
+                                color: #333 !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            table tr:nth-child(even) {
+                                background-color: #f9f9f9 !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            thead {
+                                display: table-header-group;
+                            }
+                            tr {
+                                page-break-inside: avoid;
+                            }
+                            .report-header {
+                                background-color: #f8f9fa !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+
+                            a {
+  color: inherit;          /* Inherits text color instead of default blue/purple */
+  text-decoration: none;   /* Removes underline */
+}
+
+/* Optional: Reset different link states (hover, active, visited, focus) */
+a:hover,
+a:active,
+a:visited,
+a:focus {
+  color: inherit;         /* Prevents purple for visited links */
+  text-decoration: none;  /* Ensures no underline appears on hover/focus */
+}
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="top-controls">
+                        <button class="print-button-window" onclick="window.print()">Print Report</button>
+                    </div>
+                    
+                    <div class="report-header">
+                        <div class="header-left">
+                            ${businessLogo ? `
+                            <img 
+                                src="${businessLogo}" 
+                                alt="${businessName || 'Business'} Logo" 
+                                class="business-logo" 
+                                onerror="this.style.display='none';" 
+                                loading="lazy">
+                            ` : ''}
+                            <div class="business-name">${businessName || 'Business Name'}</div>
+                        </div>
+                        <div class="header-right">
+                            <div class="report-name">${reportTitle}</div>
+                            <div class="date-range">${dateRangeText.replace(/<p>/g, '').replace(/<\/p>/g, '')}</div>
+                            <div class="date-range">Printed on: ${new Date().toLocaleString()}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="date-info">
+                        ${additionalFilters}
+                    </div>
+                    
+                    <div class="table-container">
+                        ${tableClone.outerHTML}
+                    </div>
+                    
+                   
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+    });
+});
+</script>

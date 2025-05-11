@@ -24,7 +24,7 @@
                                     <th>Layout Name</th>
                                     <th>Created Date</th>
                                     <th>Last Modified</th>
-                                    <th>Actions</th>
+                                    <th style="width: 10px">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -31,14 +31,10 @@ class DynamicTableController extends Controller
                 ->where('type', 'purchase')
                 ->get();
     
-            // Debug: Inspect the retrieved data
-            Log::debug('Retrieved Data: ' . json_encode($purchases));
-    
+            // Debug: Inspect the retrieved data    
             // Map the data
             $purchases = $purchases->map(function ($purchase) {
-                // Debug: Inspect each purchase
-                Log::debug('Processing Purchase: ' . json_encode($purchase));
-    
+                // Debug: Inspect each purchase    
                 // Calculate quantity remaining
                 $quantity_remaining = $purchase->purchaseLines->sum(function ($line) {
                     return $line->quantity - $line->quantity_sold;
@@ -70,9 +66,7 @@ class DynamicTableController extends Controller
             });
         
     
-            // Debug: Inspect the mapped data
-            Log::debug('Mapped Data: ' . json_encode($purchases));
-    
+            // Debug: Inspect the mapped data    
             // Prepare rawData and formatted_data
             $rawData = [
                 'categories' => [
@@ -127,10 +121,7 @@ class DynamicTableController extends Controller
                 'formatted_data',
                 'folders'
             ));
-        } catch (\Exception $e) {
-            Log::error('Error in DynamicTableController@index: ' . $e->getMessage());
-            Log::error('Stack Trace: ' . $e->getTraceAsString());
-            abort(500, 'Internal Server Error: ' . $e->getMessage());
+        } catch (\Exception $e) {            abort(500, 'Internal Server Error: ' . $e->getMessage());
         }
     }
 

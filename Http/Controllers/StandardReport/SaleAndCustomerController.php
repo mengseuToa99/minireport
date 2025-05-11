@@ -29,6 +29,10 @@ use App\User;
 use Carbon\Carbon;
 use Modules\Crm\Entities\CrmContact;
 use Modules\Crm\Entities\Schedule;
+use App\Utils\ContactUtil;
+use Illuminate\Support\Facades\Validator;
+
+
 
 class SaleAndCustomerController extends Controller
 {
@@ -47,6 +51,8 @@ class SaleAndCustomerController extends Controller
 
     protected $dateFilterService;
 
+    protected $contactUtil;
+
     /**
      * Create a new controller instance.
      *
@@ -55,32 +61,364 @@ class SaleAndCustomerController extends Controller
 
 
 
-    public function __construct(DateFilterService $dateFilterService, TransactionUtil $transactionUtil, ProductUtil $productUtil, ModuleUtil $moduleUtil, BusinessUtil $businessUtil)
+
+    public function __construct(DateFilterService $dateFilterService, TransactionUtil $transactionUtil, ProductUtil $productUtil, ModuleUtil $moduleUtil, BusinessUtil $businessUtil,   ContactUtil $contactUtil)
     {
         $this->transactionUtil = $transactionUtil;
         $this->productUtil = $productUtil;
         $this->moduleUtil = $moduleUtil;
         $this->businessUtil = $businessUtil;
         $this->dateFilterService = $dateFilterService;
+        $this->contactUtil = $contactUtil;
     }
 
-
-    public function branchDataReport(Request $request)
+    public function customerLoanReport(Request $request, DateFilterService $dateFilterService)
     {
-        $business_id = request()->session()->get('user.business_id');
-    
-        // Check permissions (if applicable)
-        $can_access_all_schedule = auth()->user()->can('crm.access_all_schedule');
-        $can_access_own_schedule = auth()->user()->can('crm.access_own_schedule');
-    
-        // Initialize date filters using DateFilterService
-        $dateFilterService = new DateFilterService();
+        // Get date range from DateFilterService
         $dateRange = $dateFilterService->calculateDateRange($request);
         $start_date = $dateRange['start_date'];
         $end_date = $dateRange['end_date'];
     
-        // Fetch data from the database
-        $schedules = Schedule::leftjoin('contacts', 'crm_schedules.contact_id', '=', 'contacts.id')
+        $business_id = $request->session()->get('user.business_id');
+    
+        // Query with date filter applied
+        $query = Contact::join('transactions', 'contacts.id', '=', 'transactions.contact_id')
+            ->where('contacts.business_id', $business_id)
+            ->where('transactions.pay_term_number', '>', 0)
+            ->whereBetween('transactions.transaction_date', [$start_date, $end_date]) // Date filter
+            ->select(
+                'contacts.id',
+                'contacts.name',
+                'contacts.email',
+                'contacts.mobile',
+                'contacts.city',
+                'contacts.state',
+                'contacts.country',
+                'contacts.zip_code',
+                'contacts.created_by',       // Assuming this is a user ID
+                'contacts.customer_group_id', // Assuming this links to a group
+                'transactions.business_id',
+                'transactions.pay_term_number',
+                'transactions.final_total'
+            );
+    
+        // Execute the query
+        $customers = $query->get();
+    
+        // AJAX response
+        if ($request->ajax()) {
+            $formatted_data = $customers->map(function ($customer) {
+                return [
+                    'id' => $customer->id,
+                    'name' => $customer->name,
+                    'email' => $customer->email ?? 'N/A',
+                    'mobile' => $customer->mobile ?? 'N/A',
+                    'city' => $customer->city ?? 'N/A',
+                    'state' => $customer->state ?? 'N/A',
+                    'country' => $customer->country ?? 'N/A',
+                    'zip_code' => $customer->zip_code ?? 'N/A',
+                    'created_by' => $customer->created_by_fullname ?? 'N/A', // Ensure this accessor exists
+                    'customer_group' => $customer->customer_group_name ?? 'N/A', // Ensure this accessor exists
+                    'pay_term_number' => $customer->pay_term_number ?? 0,
+                    'final_total' => $customer->final_total ?? 0 // Default to 0 if null
+                ];
+            });
+    
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $customers->count(),
+                'total_loan' => $customers->sum('final_total')
+            ]);
+        }
+    
+        // Return view for non-AJAX requests
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.customer_loan');
+    }
+
+
+
+    public function customerPurchaseReport(Request $request, DateFilterService $dateFilterService)
+    {
+        if (!auth()->user()->can('account_receivable.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query using contactUtil
+        $query = $this->contactUtil->getContactQuery($business_id, 'customer');
+
+        // Filter for unpaid accounts
+        $query->havingRaw('total_invoice >  0');
+
+        // Apply date filter
+        if ($request->filled('date_filter')) {
+            if ($request->date_filter === 'custom_month_range') {
+                $query->whereDate('contacts.created_at', '>=', $start_date)
+                    ->whereDate('contacts.created_at', '<=', $end_date);
+            } else {
+                $this->applyDateFilter($query, $request->date_filter, 'contacts.created_at');
+            }
+        }
+
+        // Created by filter
+        if ($request->filled('created_by_filter')) {
+            $query->where('contacts.created_by', $request->input('created_by_filter'));
+        }
+
+        // Assigned to filter
+        if ($request->filled('assigned_to_filter')) {
+            $query->where('contacts.assigned_to', $request->input('assigned_to_filter'));
+        }
+
+        // Location filter (if needed)
+        if ($request->filled('location_id')) {
+            $query->where('contacts.location_id', $request->input('location_id'));
+        }
+
+        // Get results
+        $contacts = $query->orderBy('contacts.created_at', 'desc')->get();
+
+        // AJAX response
+        if ($request->ajax()) {
+            $formatted_data = $contacts->map(function ($contact) {
+                return [
+                    'name' => $contact->name ?? 'N/A',
+                    'email' => $contact->email ?? 'N/A',
+                    'mobile' => $contact->mobile ?? 'N/A',
+                    'total_purchase' => $contact->total_purchase ?? 0,
+                    'purchase_paid' => $contact->purchase_paid ?? 0,
+                    'balance' => ($contact->total_purchase ?? 0) - ($contact->purchase_paid ?? 0),
+                    'address_line_1' => $contact->address_line_1 ?? 'N/A',
+                    'address_line_2' => $contact->address_line_2 ?? 'N/A',
+                    'city' => $contact->city ?? 'N/A',
+                    'state' => $contact->state ?? 'N/A',
+                    'country' => $contact->country ?? 'N/A',
+                    'zip_code' => $contact->zip_code ?? 'N/A',
+                    'created_by' => $contact->created_by->name ?? 'N/A',
+                    'assigned_to' => $contact->assigned_to_user->full_name ?? 'N/A',
+                    'created_at' => $contact->created_at ? $contact->created_at->format('Y-m-d') : 'N/A',
+                ];
+            });
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $contacts->count()
+            ]);
+        }
+
+        // Normal view response
+        return view(
+            'minireportb1::MiniReportB1.StandardReport.Salesandcustomers.customer_purchase',
+            [
+                'users' => User::where('business_id', $business_id)->get(),
+                'business_locations' => BusinessLocation::forDropdown($business_id),
+                'filterOptions' => [
+                    'users' => User::where('business_id', $business_id)->get(),
+                    'locations' => BusinessLocation::forDropdown($business_id)
+                ]
+            ]
+        );
+    }
+
+
+
+    public function accountsReceivableUnpaid(Request $request, DateFilterService $dateFilterService)
+    {
+        if (!auth()->user()->can('account_receivable.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query using contactUtil
+        $query = $this->contactUtil->getContactQuery($business_id, 'customer');
+
+        // Filter for unpaid accounts
+        $query->havingRaw('(total_invoice - invoice_received) > 0');
+
+        // Apply date filter
+        if ($request->filled('date_filter')) {
+            if ($request->date_filter === 'custom_month_range') {
+                $query->whereDate('contacts.created_at', '>=', $start_date)
+                    ->whereDate('contacts.created_at', '<=', $end_date);
+            } else {
+                $this->calculateDateRange($query, $request->date_filter, 'contacts.created_at');
+            }
+        }
+
+        // Created by filter
+        if ($request->filled('created_by_filter')) {
+            $query->where('contacts.created_by', $request->input('created_by_filter'));
+        }
+
+        // Assigned to filter
+        if ($request->filled('assigned_to_filter')) {
+            $query->where('contacts.assigned_to', $request->input('assigned_to_filter'));
+        }
+
+        // Location filter (if needed)
+        if ($request->filled('location_id')) {
+            $query->where('contacts.location_id', $request->input('location_id'));
+        }
+
+        // Get results
+        $contacts = $query->orderBy('contacts.created_at', 'desc')->get();
+
+        // AJAX response
+        if ($request->ajax()) {
+            $formatted_data = $contacts->map(function ($contact) {
+                return [
+                    'name' => $contact->name ?? 'N/A',
+                    'email' => $contact->email ?? 'N/A',
+                    'mobile' => $contact->mobile ?? 'N/A',
+                    'total_purchase' => $contact->total_purchase ?? 0,
+                    'purchase_paid' => $contact->purchase_paid ?? 0,
+                    'balance' => ($contact->total_purchase ?? 0) - ($contact->purchase_paid ?? 0),
+                    'address_line_1' => $contact->address_line_1 ?? 'N/A',
+                    'address_line_2' => $contact->address_line_2 ?? 'N/A',
+                    'city' => $contact->city ?? 'N/A',
+                    'state' => $contact->state ?? 'N/A',
+                    'country' => $contact->country ?? 'N/A',
+                    'zip_code' => $contact->zip_code ?? 'N/A',
+                    'created_by' => $contact->created_by->name ?? 'N/A',
+                    'assigned_to' => $contact->assigned_to_user->full_name ?? 'N/A',
+                    'created_at' => $contact->created_at ? $contact->created_at->format('Y-m-d') : 'N/A',
+                ];
+            });
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $contacts->count()
+            ]);
+        }
+
+        // Normal view response
+        return view(
+            'minireportb1::MiniReportB1.StandardReport.Salesandcustomers.account_receivable_unpaid',
+            [
+                'users' => User::where('business_id', $business_id)->get(),
+                'business_locations' => BusinessLocation::forDropdown($business_id),
+                'filterOptions' => [
+                    'users' => User::where('business_id', $business_id)->get(),
+                    'locations' => BusinessLocation::forDropdown($business_id)
+                ]
+            ]
+        );
+    }
+
+
+
+    public function customerwithoutmap(Request $request)
+    {
+        $business_id = $request->session()->get('user.business_id');
+
+        // Base query
+        $query = Contact::join('users', 'contacts.created_by', '=', 'users.id')
+            ->leftJoin('user_contact_access', 'contacts.id', '=', 'user_contact_access.contact_id')
+            ->leftJoin('users as assigned_user', 'user_contact_access.user_id', '=', 'assigned_user.id')
+            ->leftJoin('customer_groups', 'contacts.customer_group_id', '=', 'customer_groups.id')
+            ->where('contacts.business_id', $business_id)
+            ->where('contacts.position', null)
+            ->select([
+                'contacts.*',
+                'users.first_name as creator_first_name',
+                'users.last_name as creator_last_name',
+                'assigned_user.first_name as assignee_first_name',
+                'assigned_user.last_name as assignee_last_name',
+                'customer_groups.name as customer_group_name'
+            ]);
+
+        // Apply Created By filter
+        if ($request->filled('created_by_filter')) {
+            $query->where('contacts.created_by', $request->input('created_by_filter'));
+        }
+
+        // Apply Assigned To filter
+        if ($request->filled('assigned_to_filter')) {
+            $query->where('user_contact_access.user_id', $request->input('assigned_to_filter'));
+        }
+
+        // Apply Customer Group filter
+        if ($request->filled('customer_group_filter')) {
+            $query->where('contacts.customer_group_id', $request->input('customer_group_filter'));
+        }
+
+        // Get results
+        $customers = $query->orderBy('contacts.created_at', 'desc')->get();
+
+        // Prepare data with full names
+        $customers->transform(function ($customer) {
+            $customer->created_by_fullname = trim($customer->creator_first_name . ' ' . $customer->creator_last_name);
+            $customer->assigned_to_fullname = trim($customer->assignee_first_name . ' ' . $customer->assignee_last_name);
+            return $customer;
+        });
+
+        // Get filter options
+        $filterOptions = [
+            'users' => User::where('business_id', $business_id)->get(),
+            'customer_groups' => CustomerGroup::where('business_id', $business_id)->get()
+        ];
+
+        // AJAX response
+        if ($request->ajax()) {
+            $formatted_data = $customers->map(function ($customer) {
+                return [
+                    'name' => $customer->name,
+                    'email' => $customer->email ?? 'N/A',
+                    'mobile' => $customer->mobile ?? 'N/A',
+                    'address_line_1' => $customer->address_line_1 ?? 'N/A',
+                    'address_line_2' => $customer->address_line_2 ?? 'N/A',
+                    'city' => $customer->city ?? 'N/A',
+                    'state' => $customer->state ?? 'N/A',
+                    'country' => $customer->country ?? 'N/A',
+                    'zip_code' => $customer->zip_code ?? 'N/A',
+                    'created_by' => $customer->created_by_fullname ?: 'N/A',
+                    'assigned_to' => $customer->assigned_to_fullname ?: 'N/A',
+                    'customer_group' => $customer->customer_group_name ?? 'N/A'
+                ];
+            });
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $customers->count(),
+
+            ]);
+        }
+
+        // Normal view response
+        return view(
+            'minireportb1::MiniReportB1.StandardReport.Salesandcustomers.customer_no_map',
+            array_merge(['customers' => $customers], $filterOptions)
+        );
+    }
+
+
+    public function branchDataReport(Request $request, DateFilterService $dateFilterService)
+    {
+        $business_id = $request->session()->get('user.business_id');
+
+        // Check permissions
+        $can_access_all_schedule = auth()->user()->can('crm.access_all_schedule');
+        $can_access_own_schedule = auth()->user()->can('crm.access_own_schedule');
+
+        // Initialize date filters using DateFilterService
+        $dateRange = $dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query
+        $schedules = Schedule::leftJoin('contacts', 'crm_schedules.contact_id', '=', 'contacts.id')
             ->where('crm_schedules.business_id', $business_id)
             ->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
                 return $query->whereBetween(DB::raw('DATE(crm_schedules.start_datetime)'), [$start_date, $end_date]);
@@ -98,41 +436,55 @@ class SaleAndCustomerController extends Controller
                 ) as address"),
                 'crm_schedules.description as description'
             );
-    
-        // Apply filters if needed (optional)
-        if (!empty(request()->input('contact_id'))) {
-            $schedules->where('crm_schedules.contact_id', request()->input('contact_id'));
+
+        // Apply filters
+        if ($request->filled('username_filter')) {
+            $schedules->where('contacts.name', 'like', '%' . $request->input('username_filter') . '%');
         }
-    
+
         if (!auth()->user()->can('superadmin') && !$can_access_all_schedule) {
             $user_id = auth()->user()->id;
             $schedules->whereHas('users', function ($q) use ($user_id) {
                 $q->where('user_id', $user_id);
             });
         }
-        
-        // Paginate the results
-        $perPage = 10; // Number of items per page
-        $schedules = $schedules->paginate($perPage);
-    
-        // Format data for the view
-        $formatted_data = $schedules->map(function ($item) {
-            return [
-                'contact' => $item->contact,
-                'phone_number' => $item->phone_number,
-                'address' => $item->address,
-                'description' => $item->description,
-            ];
-        });
-    
-        // Pass data to the view
-        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.branch_data_report', [
-            'formatted_data' => $formatted_data,
-            'schedules' => $schedules, // Pass paginated data to the view
+
+        // Fetch data
+        $no_map = $schedules->get();
+
+        if ($request->ajax()) {
+            $formatted_data = $no_map->map(function ($item) {
+                return [
+                    'contact' => $item->contact ?? 'N/A',
+                    'phone_number' => $item->phone_number ?? 'N/A',
+                    'address' => trim($item->address) ?? 'N/A',
+                    'description' => $item->description ?? 'N/A'
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'no_map' => $formatted_data,
+                'total' => $formatted_data->count(),
+                'message' => $formatted_data->count() > 0 ? 'Data retrieved successfully' : 'No data available for the selected period'
+            ]);
+        }
+
+        // Get users for dropdown (assuming username_filter uses contact names)
+        $users = Contact::where('business_id', $business_id)
+            ->select('id', 'name as full_name')
+            ->orderBy('name')
+            ->get();
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.no_map_report', [
+            'no_map' => $no_map,
+            'business_name' => Business::where('id', $business_id)->value('name'), // Assuming Business model exists
             'start_date' => $start_date,
             'end_date' => $end_date,
+            'users' => $users
         ]);
     }
+
 
     public function sellPaymentReport(Request $request)
     {
@@ -272,11 +624,15 @@ class SaleAndCustomerController extends Controller
 
 
 
-    public function getPurchaseSell(Request $request)
+    public function getPurchaseSell(Request $request, DateFilterService $dateFilterService)
     {
         if (! auth()->user()->can('purchase_n_sell_report.view')) {
             abort(403, 'Unauthorized action.');
         }
+
+        $dateRange = $dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
 
         $business_id = $request->session()->get('user.business_id');
 
@@ -522,5 +878,956 @@ class SaleAndCustomerController extends Controller
 
         return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.sales_representative')
             ->with(compact('users', 'business_locations', 'pos_settings'));
+    }
+
+    public function vatSalesReport(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query for transactions matching the provided SQL query structure
+        $query = Transaction::where('transactions.business_id', $business_id)
+            ->where('transactions.type', 'sell')
+            ->where('transactions.status', 'final')
+            ->where('transactions.is_quotation', 0)
+            ->whereNull('transactions.deleted_at')
+            ->whereBetween('transactions.transaction_date', [$start_date, $end_date])
+            ->leftJoin('contacts', 'transactions.contact_id', '=', 'contacts.id')
+            ->select([
+                'transactions.transaction_date as date',
+                'transactions.invoice_no',
+                'transactions.ref_no as cn_number',
+                'contacts.name as contact_name',
+                DB::raw("CASE WHEN contacts.tax_number IS NULL OR contacts.tax_number = '' THEN 'បុគ្គលមិនជាប់អាករ' ELSE 'បុគ្គលជាប់អាករ' END as contact_type"),
+                DB::raw("COALESCE(contacts.tax_number, 'GC000001') as tax_number"),
+                'transactions.final_total',
+                'transactions.total_before_tax',
+                'transactions.tax_amount',
+                DB::raw("CASE WHEN transactions.is_export = 1 THEN transactions.total_before_tax ELSE 0 END as exempt_amount"),
+                DB::raw("CASE WHEN transactions.is_export = 1 THEN 0 ELSE transactions.total_before_tax END as domestic_sale"),
+                DB::raw("CASE WHEN transactions.is_export = 1 THEN transactions.total_before_tax ELSE 0 END as export_vat"),
+                'transactions.additional_expense_value_1 as domestic_sale_tax',
+                'transactions.additional_expense_value_2 as withholding_tax',
+                'transactions.additional_expense_value_3 as public_lighting_tax',
+                'transactions.additional_expense_value_4 as special_goods_tax',
+                DB::raw("0 as special_services_tax"),
+                DB::raw("0 as accommodation_tax"),
+                DB::raw("0 as income_tax_rate"),
+                DB::raw("'1%' as notes"),
+                DB::raw("CASE WHEN YEAR(transactions.transaction_date) = YEAR(CURRENT_DATE()) THEN 'មិនទាន់ប្រកាសពន្ធ' ELSE 'បានប្រកាសពន្ធ' END as status"),
+                DB::raw("'ចំណូលពីការលក់ប្រចាំថ្ងៃ' as description")
+            ])
+            ->orderBy('transactions.transaction_date', 'desc')
+            ->orderBy('transactions.invoice_no', 'desc');
+
+        // Apply location filter if provided
+        if ($request->filled('location_id')) {
+            $query->where('transactions.location_id', $request->input('location_id'));
+        }
+
+        // Apply contact filter if provided
+        if ($request->filled('customer_id')) {
+            $query->where('transactions.contact_id', $request->input('customer_id'));
+        }
+
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $transactions = $query->skip($offset)->take($limit)->get();
+
+        // Get totals from unfiltered query for accurate sums
+        $totals = $query->selectRaw('
+            SUM(transactions.final_total) as total_final, 
+            SUM(transactions.total_before_tax) as total_before_tax,
+            SUM(transactions.tax_amount) as total_tax,
+            SUM(CASE WHEN transactions.is_export = 1 THEN transactions.total_before_tax ELSE 0 END) as total_exempt
+        ')->first();
+
+        // Format data for AJAX response
+        if ($request->ajax()) {
+            $formatted_data = [];
+
+            foreach ($transactions as $transaction) {
+                $formatted_data[] = [
+                    'date' => $transaction->date ? \Carbon\Carbon::parse($transaction->date)->format('d-m-Y') : '',
+                    'invoice_no' => $transaction->invoice_no ?? '',
+                    'cn_number' => $transaction->cn_number ?? '',
+                    'contact_type' => $transaction->contact_type ?? '',
+                    'tax_number' => $transaction->tax_number ?? '',
+                    'contact_name' => $transaction->contact_name ?? '',
+                    'final_total' => $transaction->final_total ?? '',
+                    'total_before_tax' => $transaction->total_before_tax ?? '',
+                    'exempt_amount' => $transaction->exempt_amount ?? '',
+                    'domestic_sale' => $transaction->domestic_sale ?? '',
+                    'export_vat' => $transaction->export_vat ?? '',
+                    'domestic_sale_tax' => $transaction->domestic_sale_tax ?? '',
+                    'withholding_tax' => $transaction->withholding_tax ?? '',
+                    'public_lighting_tax' => $transaction->public_lighting_tax ?? '',
+                    'special_goods_tax' => $transaction->special_goods_tax ?? '',
+                    'special_services_tax' => $transaction->special_services_tax ?? '',
+                    'accommodation_tax' => $transaction->accommodation_tax ?? '',
+                    'income_tax_rate' => $transaction->income_tax_rate ?? '',
+                    'notes' => $transaction->notes ?? '',
+                    'description' => $transaction->description ?? '',
+                    'status' => $transaction->status ?? ''
+                ];
+            }
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page,
+                'total_final' => $totals->total_final ?? 0,
+                'total_before_tax' => $totals->total_before_tax ?? 0,
+                'total_tax' => $totals->total_tax ?? 0,
+                'total_exempt' => $totals->total_exempt ?? 0
+            ]);
+        }
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id, true);
+        
+        // Get customers for dropdown
+        $customers = Contact::customersDropdown($business_id, false);
+
+        // Get business details
+        $business = Business::find($business_id);
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.vat_sales_report')
+            ->with(compact('business_locations', 'customers', 'business'));
+    }
+
+    public function monthlyPurchaseLedger(Request $request)
+    {
+        // Check authorization
+        if (!auth()->user()->can('purchase.view') && !auth()->user()->can('purchase.create')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Get business ID from session
+        $business_id = request()->session()->get('user.business_id');
+
+        // Initialize debug variables
+        $debugSql = '';
+        $debugBindings = [];
+        $using_date_filter = false;
+
+        // Configure pagination
+        $limit = $request->input('limit', 10);
+        $page = $request->input('page', 1);
+        $offset = ($page - 1) * $limit;
+
+        // Build query
+        $query = Transaction::leftJoin('contacts', 'transactions.contact_id', '=', 'contacts.id')
+            ->where('transactions.business_id', $business_id)
+            ->where('transactions.type', 'purchase')
+            ->select(
+                'transactions.transaction_date as purchase_date',
+                'transactions.invoice_no as invoice_number',
+                DB::raw('CASE 
+                    WHEN contacts.tax_number IS NULL OR contacts.tax_number = "" THEN "បុគ្គលមិនជាប់អាករ"
+                    WHEN contacts.is_export = 1 THEN "ក្រុមហ៊ុនក្រៅប្រទេស"
+                    ELSE "បុគ្គលជាប់អាករ"
+                END AS supplier_type'),
+                DB::raw('COALESCE(contacts.tax_number, contacts.mobile) AS tax_id'),
+                DB::raw('COALESCE(contacts.supplier_business_name, contacts.name) AS supplier_name'),
+                'transactions.final_total as total_amount',
+                'transactions.total_before_tax as amount_without_vat',
+                DB::raw('(transactions.final_total - COALESCE(transactions.tax_amount, 0)) as non_taxable_amount'),
+                DB::raw('0 AS zero_rate_vat'),
+                'transactions.tax_amount as domestic_vat',
+                DB::raw('0 AS import_vat_10'),
+                DB::raw('0 AS non_creditable_vat'),
+                DB::raw('0 AS domestic_vat_state'),
+                DB::raw('0 AS import_vat_10_state'),
+                'transactions.additional_notes as description',
+                DB::raw('"មិនទាន់ប្រកាសពន្ធ" AS tax_declaration_status')
+            );
+
+        // Handle date filtering
+        // $using_date_filter = false; // This line is moved to the variable initialization section
+
+        // Override request parameters to force December 2024 if no specific date is provided
+        if ($request->has('date_filter') && !empty($request->input('date_filter')) && $request->input('date_filter') !== 'custom_month_range') {
+            $using_date_filter = true;
+            $this->dateFilterService->applyDateFilter($query, $request->input('date_filter'), 'transactions.transaction_date');
+        } else if ($request->has('start_date') && $request->has('end_date') && !empty($request->input('start_date')) && !empty($request->input('end_date'))) {
+            $using_date_filter = true;
+            $start_date = Carbon::parse($request->input('start_date'))->startOfDay();
+            $end_date = Carbon::parse($request->input('end_date'))->endOfDay();
+            $query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+        } else {
+            // Default to December 2024 (hardcoded for data availability)
+            $query->whereMonth('transactions.transaction_date', '=', 12);
+            $query->whereYear('transactions.transaction_date', '=', 2024);
+        }
+
+        // Apply location filter
+        if ($request->has('location_id') && !empty($request->input('location_id'))) {
+            $query->where('transactions.location_id', $request->input('location_id'));
+        }
+
+        // Apply supplier filter
+        if ($request->has('supplier_id') && !empty($request->input('supplier_id'))) {
+            $query->where('transactions.contact_id', $request->input('supplier_id'));
+        }
+
+        // For debugging - Get SQL query string
+        $debugSql = $query->toSql();
+        $debugBindings = $query->getBindings();
+
+        // Clone query for count before pagination
+        $count_query = clone $query;
+        $total_records = $count_query->count();
+
+        // Get paginated data
+        $transactions = $query->orderBy('transactions.transaction_date', 'desc')
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        // Get totals from separate query for accurate sums
+        $totals_query = Transaction::leftJoin('contacts', 'transactions.contact_id', '=', 'contacts.id')
+            ->where('transactions.business_id', $business_id)
+            ->where('transactions.type', 'purchase');
+            
+        // Apply the same filters to totals query
+        if ($using_date_filter) {
+            if ($request->has('date_filter') && !empty($request->input('date_filter')) && $request->input('date_filter') !== 'custom_month_range') {
+                $this->dateFilterService->applyDateFilter($totals_query, $request->input('date_filter'), 'transactions.transaction_date');
+            } else if ($request->has('start_date') && $request->has('end_date') && !empty($request->input('start_date')) && !empty($request->input('end_date'))) {
+                $start_date = Carbon::parse($request->input('start_date'))->startOfDay();
+                $end_date = Carbon::parse($request->input('end_date'))->endOfDay();
+                $totals_query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+            }
+        } else {
+            // Default to December 2024 (hardcoded for data availability)
+            $totals_query->whereMonth('transactions.transaction_date', '=', 12);
+            $totals_query->whereYear('transactions.transaction_date', '=', 2024);
+        }
+
+        if ($request->has('location_id') && !empty($request->input('location_id'))) {
+            $totals_query->where('transactions.location_id', $request->input('location_id'));
+        }
+
+        if ($request->has('supplier_id') && !empty($request->input('supplier_id'))) {
+            $totals_query->where('transactions.contact_id', $request->input('supplier_id'));
+        }
+
+        $totals = $totals_query->selectRaw('
+            SUM(transactions.final_total) as total_amount, 
+            SUM(transactions.total_before_tax) as total_amount_without_vat,
+            SUM(transactions.final_total - COALESCE(transactions.tax_amount, 0)) as total_non_taxable,
+            SUM(transactions.tax_amount) as total_domestic_vat
+        ')->first();
+
+        // Format data for AJAX response
+        if ($request->ajax()) {
+            $formatted_data = [];
+
+            foreach ($transactions as $transaction) {
+                $formatted_data[] = [
+                    'purchase_date' => Carbon::parse($transaction->purchase_date)->format('d-m-Y'),
+                    'invoice_number' => $transaction->invoice_number,
+                    'supplier_type' => $transaction->supplier_type,
+                    'tax_id' => $transaction->tax_id,
+                    'supplier_name' => $transaction->supplier_name,
+                    'total_amount' => $transaction->total_amount,
+                    'amount_without_vat' => $transaction->amount_without_vat,
+                    'non_taxable_amount' => $transaction->non_taxable_amount,
+                    'zero_rate_vat' => $transaction->zero_rate_vat,
+                    'domestic_vat' => $transaction->domestic_vat,
+                    'import_vat_10' => $transaction->import_vat_10,
+                    'non_creditable_vat' => $transaction->non_creditable_vat,
+                    'domestic_vat_state' => $transaction->domestic_vat_state,
+                    'import_vat_10_state' => $transaction->import_vat_10_state,
+                    'description' => $transaction->description,
+                    'tax_declaration_status' => $transaction->tax_declaration_status
+                ];
+            }
+
+            $response = [
+                'data' => $formatted_data,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page,
+                'total_amount' => $totals->total_amount ?? 0,
+                'total_amount_without_vat' => $totals->total_amount_without_vat ?? 0,
+                'total_non_taxable' => $totals->total_non_taxable ?? 0,
+                'total_domestic_vat' => $totals->total_domestic_vat ?? 0,
+                'debug_info' => [
+                    'sql' => $debugSql,
+                    'bindings' => $debugBindings,
+                    'business_id' => $business_id,
+                    'using_date_filter' => $using_date_filter,
+                    'original_request' => [
+                        'date_filter' => $request->input('date_filter'),
+                        'start_date' => $request->input('start_date'),
+                        'end_date' => $request->input('end_date')
+                    ]
+                ]
+            ];
+            
+            
+            return response()->json($response);
+        }
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id, true);
+        
+        // Get suppliers for dropdown
+        $suppliers = Contact::suppliersDropdown($business_id, false);
+
+        // Get business details
+        $business = Business::find($business_id);
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.monthly_purchase_ledger')
+            ->with(compact('business_locations', 'suppliers', 'business'));
+    }
+
+    // Add the withholding tax report method
+    public function withholdingTaxReport(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Format dates for exchange rate lookup
+        $report_month = date('m', strtotime($start_date));
+        $report_year = date('Y', strtotime($start_date));
+        $fifteenth_date = "$report_year-$report_month-15";
+
+        // Get the exchange rate from the 15th of the month
+        $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+            ->whereDate('date_1', $fifteenth_date)
+            ->first();
+
+        if (!$exchangeRate) {
+            // If no rate on 15th, get the closest rate on or before 15th within the same month
+            $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+                ->where('date_1', '<=', $fifteenth_date)
+                ->whereYear('date_1', $report_year)
+                ->whereMonth('date_1', $report_month)
+                ->orderBy('date_1', 'desc')
+                ->first();
+
+            // If still no rate found in the current month before 15th, try finding ANY rate in that month
+            if (!$exchangeRate) {
+                $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+                    ->whereYear('date_1', $report_year)
+                    ->whereMonth('date_1', $report_month)
+                    ->orderBy('date_1', 'desc') // Get the latest in the month
+                    ->first();
+            }
+
+            // Fallback: Get the absolute latest rate if still nothing found
+            if (!$exchangeRate) {
+                $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+                    ->orderBy('date_1', 'desc')
+                    ->first();
+            }
+        }
+
+        // Use the exchange rate from the database or default to 0
+        $exchange_rate = $exchangeRate ? $exchangeRate->KHR_3 : 0;
+        $exchange_rate_date_used = $exchangeRate ? $exchangeRate->date_1 : $fifteenth_date;
+
+        // Using the provided SQL query for accounts table data
+        $query = DB::table('accounts as a')
+            ->leftJoin('account_transactions as tr', 'a.id', '=', 'tr.account_id')
+            ->where('a.business_id', $business_id)
+            ->where('a.id', 550) // Targeting the specific account
+            ->select([
+                'a.id',
+                'a.account_number as លេខគណនី',
+                'a.name as ឈ្មោះ',
+                'a.account_details as លំអិត',
+                DB::raw("'ការជួលឬការជួលអាគារ' as ប្រភេទគណនី"),
+                DB::raw("'ការចំណាយ' as ក្រុមគណនី"),
+                DB::raw("'ការចំណាយ' as រងក្រុមគណនី"),
+                'a.description as brand_description',
+                DB::raw("COALESCE(SUM(CASE WHEN tr.type = 'credit' THEN tr.amount WHEN tr.type = 'debit' THEN -tr.amount ELSE 0 END), 600.0000) as សមតុល្យ"),
+                DB::raw("'004 លីម ស្រីពេជ្រ' as ទិន្នន័យលំអិត"),
+                DB::raw("MIN(tr.created_at) as first_transaction_date")
+            ])
+            ->groupBy('a.id', 'a.account_number', 'a.name', 'a.account_details', 'a.description');
+
+        // Optional date filter if needed
+        if ($request->filled('date_filter') || ($request->filled('start_date') && $request->filled('end_date'))) {
+            $query->where(function($q) use ($start_date, $end_date) {
+                $q->whereBetween('tr.created_at', [$start_date, $end_date])
+                  ->orWhereNull('tr.created_at'); // Include accounts with no transactions
+            });
+        }
+
+        // Execute the query
+        $accountData = $query->get();
+
+        // Create data compatible with the existing withholding tax table
+        $records = collect();
+        foreach ($accountData as $account) {
+            // Get transaction date for exchange rate lookup if available
+            $transaction_date = $account->first_transaction_date ? Carbon::parse($account->first_transaction_date) : null;
+            
+            // Use transaction-specific exchange rate if available, otherwise use the month's rate
+            $tx_exchange_rate = $exchange_rate;
+            
+            if ($transaction_date) {
+                // Try to get exchange rate for the transaction date
+                $txExchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+                    ->whereDate('date_1', $transaction_date->format('Y-m-d'))
+                    ->first();
+                
+                // If not found, get closest rate before transaction date
+                if (!$txExchangeRate) {
+                    $txExchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+                        ->where('date_1', '<=', $transaction_date->format('Y-m-d'))
+                        ->orderBy('date_1', 'desc')
+                        ->first();
+                }
+                
+                // Use transaction-specific rate if found
+                if ($txExchangeRate) {
+                    $tx_exchange_rate = $txExchangeRate->KHR_3;
+                }
+            }
+            
+            // Create a record that will match the structure expected by the view
+            $record = new \stdClass();
+            $record->id = $account->id;
+            $record->date = $transaction_date ? $transaction_date->format('Y-m-d') : date('Y-m-d');
+            $record->paid_on = $transaction_date ? $transaction_date->format('Y-m-d') : date('Y-m-d');
+            $record->invoice_no = $account->លេខគណនី ?? '';
+            $record->tax_residence_type = "ពន្ធកាត់ទុកលើថ្លៃឈ្នួល (រូបវន្ដបុគ្គល) ១០%";
+            $record->contact_type = "អ្នកផ្គត់ផ្គង់ ទូទៅ";
+            $record->tax_number = "";
+            $record->contact_name = $account->ឈ្មោះ ?? '';
+            $record->tax_rate = 10;
+            $record->payable_amount = $account->សមតុល្យ ?? 600;
+            $record->tax_amount = ($account->សមតុល្យ ?? 600) * 0.1; // 10% of balance
+            $record->certificate_number = "";
+            $record->tax_status = "មិនទាន់ប្រកាសពន្ធ";
+            $record->description = "ការបង់ថ្លៃឈ្នួលចលនទ្រព្យ និង អចលនទ្រព្យ(រូបវន្ដបុគ្គល)";
+            $record->exchange_rate = $tx_exchange_rate;
+            
+            $records->add($record);
+        }
+
+        // For AJAX response, we'll maintain the original structure
+        if ($request->ajax() || $request->wantsJson()) {
+            // Format data for display
+            $formatted_data = [];
+            
+            foreach ($records as $record) {
+                // Format tax rate to display
+                $tax_rate_display = is_numeric($record->tax_rate) ? number_format($record->tax_rate, 0) . '%' : $record->tax_rate;
+                
+                // Map to expected structure
+                $formatted_data[] = [
+                    'date' => Carbon::parse($record->date)->format('d-m-Y'),
+                    'invoice_no' => $record->invoice_no,
+                    'tax_residence_type' => $record->tax_residence_type,
+                    'contact_type' => $record->contact_type,
+                    'tax_number' => $record->tax_number ?? '',
+                    'contact_name' => $record->contact_name,
+                    'transaction_type' => $record->tax_residence_type, // Using same field for display
+                    'tax_rate' => $tax_rate_display,
+                    'payable_amount' => $record->payable_amount,
+                    'tax_amount' => $record->tax_amount,
+                    'certificate_number' => $record->certificate_number ?? '',
+                    'tax_status' => $record->tax_status,
+                    'description' => $record->description ?? '',
+                    'exchange_rate' => $record->exchange_rate
+                ];
+            }
+
+            // Calculate totals
+            $totals = (object) [
+                'total_payable_amount' => $records->sum('payable_amount'),
+                'total_tax_amount' => $records->sum('tax_amount')
+            ];
+
+            $response = [
+                'data' => $formatted_data,
+                'total' => $records->count(),
+                'total_pages' => 1, // Pagination managed by view
+                'current_page' => 1,
+                'total_payable_amount' => $totals->total_payable_amount ?? 0,
+                'total_tax_amount' => $totals->total_tax_amount ?? 0
+            ];
+            
+            return response()->json($response);
+        }
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id, true);
+        
+        // Get suppliers for dropdown
+        $suppliers = Contact::suppliersDropdown($business_id, false);
+
+        // Get tax types for dropdown
+        $tax_types = [
+            'resident' => __('minireportb1::minireportb1.resident'),
+            'non_resident' => __('minireportb1::minireportb1.non_resident')
+        ];
+
+        // Get business details
+        $business = Business::find($business_id);
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.withholding_tax_report')
+            ->with(compact('business_locations', 'suppliers', 'tax_types', 'business'));
+    }
+
+    /**
+     * Display the rental invoice based on withholding tax data
+     */
+    public function rentalInvoice(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get current month and year
+        $current_date = Carbon::now();
+        $month = $current_date->month;
+        $year = $current_date->year;
+        
+        // Khmer month names
+        $khmer_months = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 
+                         'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+        $khmer_month = $khmer_months[$month - 1];
+
+        // Get the most recent exchange rate from the database
+        $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
+            ->orderBy('date_1', 'desc')
+            ->first();
+
+        // Use the exchange rate from the database or default to 4025
+        $exchange_rate = $exchangeRate ? $exchangeRate->KHR_3 : 4025;
+        
+        // Get data from the specific account
+        $query = DB::table('accounts as a')
+            ->leftJoin('account_transactions as tr', 'a.id', '=', 'tr.account_id')
+            ->where('a.business_id', $business_id)
+            ->where('a.id', 550) // Targeting the specific account
+            ->select([
+                'a.id',
+                'a.account_number as លេខគណនី',
+                'a.name as ឈ្មោះ',
+                DB::raw("COALESCE(SUM(CASE WHEN tr.type = 'credit' THEN tr.amount WHEN tr.type = 'debit' THEN -tr.amount ELSE 0 END), 600.0000) as សមតុល្យ")
+            ])
+            ->groupBy('a.id', 'a.account_number', 'a.name');
+            
+        $accountData = $query->first();
+        
+        // Default amount is 600 if no account data found
+        $amount = $accountData ? $accountData->សមតុល្យ : 600.00;
+
+        // For AJAX requests (not needed in this updated version, but kept for backward compatibility)
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'data' => [
+                    [
+                        'date' => $current_date->format('Y-m-d'),
+                        'invoice_no' => $accountData ? $accountData->លេខគណនី : '',
+                        'contact_name' => $accountData ? $accountData->ឈ្មោះ : 'វិទ្យាស្ថានបច្ចេកវិទ្យាកម្ពុជា',
+                        'tax_number' => '004 លីម ស្រីពេជ្រ',
+                        'payable_amount' => $amount,
+                        'description' => "ចំណាយលើការផ្សព្វផ្សាយ",
+                        'exchange_rate' => $exchange_rate
+                    ]
+                ],
+                'total' => 1,
+                'total_pages' => 1,
+                'current_page' => 1
+            ]);
+        }
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.rental_invoice')
+            ->with(compact('exchange_rate', 'amount', 'khmer_month'));
+    }
+
+    public function purchasesExpensesReport(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query for due purchases and expenses
+        $query = Transaction::leftJoin('contacts as c', 'transactions.contact_id', '=', 'c.id')
+            ->join('business_locations as bs', 'transactions.location_id', '=', 'bs.id')
+            ->leftJoin('transaction_payments as tp', 'transactions.id', '=', 'tp.transaction_id')
+            ->leftJoin('transactions as pr', 'transactions.id', '=', 'pr.return_parent_id')
+            ->leftJoin('users as u', 'transactions.created_by', '=', 'u.id')
+            ->where('transactions.business_id', $business_id)
+            ->where('transactions.payment_status', 'due');
+        
+        // Apply type filter
+        if ($request->filled('type') && in_array($request->input('type'), ['purchase', 'expense'])) {
+            $query->where('transactions.type', $request->input('type'));
+        } else {
+            $query->whereIn('transactions.type', ['purchase', 'expense']);
+        }
+        
+        $query->select([
+            'transactions.id',
+            'transactions.transaction_date as date',
+            'transactions.ref_no as tran_no',
+            'bs.name as location',
+            DB::raw('COALESCE(c.supplier_business_name, c.name) as contact_or_supplier_name'),
+            'transactions.payment_status',
+            'transactions.final_total',
+            'transactions.type'
+        ])
+        ->groupBy(
+            'transactions.id',
+            'transactions.transaction_date',
+            'transactions.ref_no',
+            'bs.name',
+            'c.supplier_business_name',
+            'c.name',
+            'transactions.payment_status',
+            'transactions.final_total',
+            'transactions.type'
+        )
+        ->orderBy('transactions.transaction_date', 'desc');
+
+        // Apply date filter
+        if (!empty($start_date) && !empty($end_date)) {
+            $query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+        }
+
+        // Apply location filter
+        if ($request->filled('location_id')) {
+            $query->where('transactions.location_id', $request->input('location_id'));
+        }
+
+        // Apply supplier filter
+        if ($request->filled('supplier_id')) {
+            $query->where('transactions.contact_id', $request->input('supplier_id'));
+        }
+        
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $transactions = $query->skip($offset)->take($limit)->get();
+
+        // Get totals with the same filters
+        $totalsQuery = clone $query;
+        $totals = $totalsQuery->selectRaw('SUM(transactions.final_total) as total_amount')->first();
+
+        // Format data for AJAX response
+        if ($request->ajax()) {
+            $formatted_data = [];
+
+            foreach ($transactions as $transaction) {
+                $formatted_data[] = [
+                    'id' => $transaction->id,
+                    'date' => $transaction->date ? \Carbon\Carbon::parse($transaction->date)->format('d-m-Y') : '',
+                    'tran_no' => $transaction->tran_no ?? '',
+                    'location' => $transaction->location ?? '',
+                    'contact_or_supplier_name' => $transaction->contact_or_supplier_name ?? '',
+                    'payment_status' => $transaction->payment_status ?? '',
+                    'final_total' => $transaction->final_total ?? 0,
+                    'type' => ucfirst($transaction->type) ?? ''
+                ];
+            }
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page,
+                'total_amount' => $totals->total_amount ?? 0
+            ]);
+        }
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id, true);
+        
+        // Get suppliers for dropdown
+        $suppliers = Contact::suppliersDropdown($business_id, false);
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.purchases_expenses_report')
+            ->with(compact('business_locations', 'suppliers'));
+    }
+
+    /**
+     * Display the P101 tax form
+     */
+    public function p101TaxForm(Request $request)
+    {
+        if (!auth()->user()->can('tax.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+        $business = Business::find($business_id);
+        
+        // Get current month and year
+        $current_date = Carbon::now();
+        $month = $current_date->format('m');
+        $year = $current_date->format('Y');
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id);
+
+        return view('minireportb1::MiniReportB1.gov_tax.p101_tax_form', compact(
+            'business',
+            'month',
+            'year',
+            'business_locations'
+        ));
+    }
+
+    /**
+     * Process P101 tax form submission
+     */
+    public function processP101TaxForm(Request $request)
+    {
+        if (!auth()->user()->can('tax.create')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        try {
+            $business_id = $request->session()->get('user.business_id');
+            
+            // Validate the request
+            $validator = Validator::make($request->all(), [
+                'company_name' => 'required|string|max:255',
+                'company_name_latin' => 'required|string|max:255',
+                'form_number' => 'required|string|max:50',
+                'date' => 'required|date',
+                'tin' => 'required|string|max:20',
+                'department' => 'required|in:large,branch',
+                'month' => 'required|numeric|min:1|max:12',
+                'year' => 'required|numeric|min:2000|max:2100',
+                'tax_items' => 'required|array',
+                'tax_items.*.tax_type' => 'required|string',
+                'tax_items.*.tax_amount' => 'required|numeric|min:0',
+                'tax_items.*.account_number' => 'required|string|max:50',
+                'tax_items.*.additional_tax' => 'required|numeric|min:0',
+                'tax_items.*.interest' => 'required|numeric|min:0',
+                'tax_items.*.additional_account' => 'required|string|max:50',
+                'tax_items.*.total_amount' => 'required|numeric|min:0'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => __('messages.something_went_wrong'),
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            // Process the tax form data
+            DB::beginTransaction();
+
+            // Create tax form record
+            $tax_form = [
+                'business_id' => $business_id,
+                'company_name' => $request->input('company_name'),
+                'company_name_latin' => $request->input('company_name_latin'),
+                'form_number' => $request->input('form_number'),
+                'date' => $request->input('date'),
+                'tin' => $request->input('tin'),
+                'department' => $request->input('department'),
+                'month' => $request->input('month'),
+                'year' => $request->input('year'),
+                'total_amount' => array_sum(array_column($request->input('tax_items'), 'total_amount')),
+                'created_by' => auth()->user()->id
+            ];
+
+            // Save tax form
+            $tax_form_id = DB::table('p101_tax_forms')->insertGetId($tax_form);
+
+            // Save tax items
+            $tax_items = [];
+            foreach ($request->input('tax_items') as $item) {
+                $tax_items[] = [
+                    'p101_tax_form_id' => $tax_form_id,
+                    'tax_type' => $item['tax_type'],
+                    'tax_amount' => $item['tax_amount'],
+                    'account_number' => $item['account_number'],
+                    'additional_tax' => $item['additional_tax'],
+                    'interest' => $item['interest'],
+                    'additional_account' => $item['additional_account'],
+                    'total_amount' => $item['total_amount'],
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now()
+                ];
+            }
+
+            DB::table('p101_tax_form_items')->insert($tax_items);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'msg' => __('messages.saved_successfully'),
+                'tax_form_id' => $tax_form_id
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'msg' => __('messages.something_went_wrong')
+            ], 500);
+        }
+    }
+
+    /**
+     * Get P101 tax form data
+     */
+    public function getP101TaxFormData(Request $request)
+    {
+        if (!auth()->user()->can('tax.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+        
+        $query = DB::table('p101_tax_forms')
+            ->where('business_id', $business_id)
+            ->orderBy('created_at', 'desc');
+
+        if ($request->filled('month')) {
+            $query->where('month', $request->input('month'));
+        }
+
+        if ($request->filled('year')) {
+            $query->where('year', $request->input('year'));
+        }
+
+        $tax_forms = $query->get();
+
+        return response()->json([
+            'data' => $tax_forms
+        ]);
+    }
+
+    public function customerReportViaStaff(Request $request)
+    {
+        if (!auth()->user()->can('customer.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+       
+        // Base query
+        $query = DB::table('users')
+            ->leftJoin('user_contact_access', 'users.id', '=', 'user_contact_access.user_id')
+            ->where('users.business_id', $business_id)
+            ->where('users.status', 'active');
+
+
+
+        // Apply user filter if specified
+        if ($request->filled('user_id')) {
+            $query->where('users.id', $request->input('user_id'));
+        }
+
+        // Select and group by statement
+        $query->select([
+            'users.id',
+            DB::raw("COALESCE(
+                NULLIF(
+                    CONCAT(
+                        COALESCE(users.surname, ''), 
+                        ' ', 
+                        COALESCE(users.first_name, ''), 
+                        ' ', 
+                        COALESCE(users.last_name, '')
+                    ), 
+                ''
+            ), 
+            users.username) AS employee_name"),
+            DB::raw("COUNT(user_contact_access.contact_id) AS contact_count")
+        ])
+        ->groupBy('users.id', 'users.surname', 'users.first_name', 'users.last_name', 'users.username');
+
+        // Order by contact count
+        $query->orderBy(DB::raw("COUNT(user_contact_access.contact_id)"), 'desc');
+
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $staff = $query->skip($offset)->take($limit)->get();
+
+        // Format data for AJAX response
+        if ($request->ajax()) {
+            $formatted_data = [];
+
+            foreach ($staff as $employee) {
+                $formatted_data[] = [
+                    'id' => $employee->id,
+                    'employee_name' => $employee->employee_name,
+                    'contact_count' => $employee->contact_count
+                ];
+            }
+
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page
+            ]);
+        }
+
+        // Get users for dropdown
+        $users = User::where('business_id', $business_id)
+                    ->where('status', 'active')
+                    ->select(DB::raw("CONCAT(COALESCE(surname, ''), ' ', COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) as name"), 'id')
+                    ->pluck('name', 'id')
+                    ->toArray();
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.customer_report_via_staff')
+            ->with(compact('users'));
     }
 }

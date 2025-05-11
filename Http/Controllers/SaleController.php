@@ -112,12 +112,7 @@ class SaleController extends Controller
                 'totalPages' => ceil($totalRows / $perPage),
                 'currentPage' => $page,
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Error in getData method', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-    
+        } catch (\Exception $e) {    
             return response()->json([
                 'error' => 'Error retrieving data: ' . $e->getMessage(),
             ], 500);

@@ -30,6 +30,8 @@ use Modules\Essentials\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProductController;
 use App\Transaction;
 use App\Http\Controllers\ExpenseController;
+use Modules\Crm\Http\Controllers\ScheduleController;
+use Modules\MiniReportB1\Http\Controllers\MiniReportB1Controller;
 
 class MultiTableController extends Controller
 {
@@ -43,6 +45,9 @@ class MultiTableController extends Controller
     protected $payroll;
     protected $product;
     protected $expense;
+    protected $followup;
+    protected $customer;
+
 
     /**
      * Filter data to include only visible columns.
@@ -57,6 +62,7 @@ class MultiTableController extends Controller
      * Constructor
      */
     public function __construct(
+        ScheduleController $followup,
         ProductUtil $productUtil,
         TransactionUtil $transactionUtil,
         BusinessUtil $businessUtil,
@@ -66,7 +72,8 @@ class MultiTableController extends Controller
         PurchaseController $purchase,
         PayrollController $payroll,
         ProductController $product,
-        ExpenseController $expense
+        ExpenseController $expense,
+        MiniReportB1Controller $customer
     ) {
         $this->productUtil = $productUtil;
         $this->transactionUtil = $transactionUtil;
@@ -78,6 +85,8 @@ class MultiTableController extends Controller
         $this->payroll = $payroll;
         $this->product = $product;
         $this->expense = $expense;
+        $this->followup = $followup;
+        $this->customer = $customer;
     }
 
     ///////////////////////////////////////////////
@@ -121,71 +130,98 @@ class MultiTableController extends Controller
             // Decode JSON layout
             $layout = json_decode($file->layout, true);
             $file_name = $file->file_name;
-            $report_name = $layout['reportName'];
-            $visibleColumnNames = $layout['visibleColumnNames'] ?? []; 
-            $filterCriteria = $layout['filterCriteria'];
+            $report_name = $layout['reportName'] ?? null;
+            $visibleColumnNames = $layout['visibleColumnNames'] ?? [];
+            $filterCriteria = $layout['filterCriteria'] ?? [];
+            $tab = null;
         }
-
     
         // Fetch data based on the report name (if provided)
         switch ($report_name) {
             case "saleReport":
-                // Call the saleReport function to fetch sales data
                 $response = $this->sell->index();
                 $data = (array) $response->getData();
                 break;
     
             case "purchaseReport":
-                // Call the purchaseReport function to fetch purchase data
                 $response = $this->purchase->index();
                 $data = (array) $response->getData();
                 break;
-
+    
             case "productReport":
-                    // Call the purchaseReport function to fetch purchase data
                 $response = $this->product->index();
                 $data = (array) $response->getData();
                 break;
-
+    
             case "PayRollReport":
-                    // Call the purchaseReport function to fetch purchase data
                 $response = $this->payroll->index();
                 $data = (array) $response->getData();
                 break;
+    
             case "stockReport":
-                // Call the purchaseReport function to fetch purchase data
                 $response = $this->product->index();
                 $data = (array) $response->getData();
                 break;
-
+    
             case "exspenseReport":
-                // Call the purchaseReport function to fetch purchase data
                 $response = $this->expense->index();
                 $data = (array) $response->getData();
                 break;
-            
+    
             case "pay_componentsReport":
                 $response = $this->payroll->index();
                 $data = (array) $response->getData();
                 break;
-
+    
+            case "followupReport":
+                $response = $this->followup->index();
+                $data = (array) $response->getData();
+                $data['file_name'] = $file_name; // Use the original file_name
+                $data['tab'] = "followupReport";
                 
+                break;
+    
+            case "recursiveFollowupReport":
+                $response = $this->followup->index(); // Adjust if different method needed
+                $data = (array) $response->getData();
+                $data['file_name'] = $file_name; // Use the same file_name as followupReport
+                $data['tab'] = "recursiveFollowupReport";
+            
+            case "customerReport":
+
+                $request->merge(['type' => 'customer']);
+                $response = $this->customer->index();
+            
+                // Check if the response is a redirect
+                if ($response instanceof \Illuminate\Http\RedirectResponse) {
+                    return $response; // Or throw an exception
+                }
+
+                $response = $this->customer->customer(request()); // Pass the current request
+                $data = (array) $response->getData();
+                break;
+
+    
             default:
-                // Default data if no report name is provided
                 $data = [];
                 break;
         }
     
         // Add folders, file-specific data, and visibleColumnNames to the response
         $data['folders'] = $folders;
-        $data['file_name'] = $file_name;
+        $data['file_name'] = $file_name; // Default assignment, overridden by switch if set
         $data['report_name'] = $report_name;
         $data['visibleColumnNames'] = $visibleColumnNames;
         $data['filterCriteria'] = $filterCriteria;
-
-        // dd($data['report_name']);
+       
     
-        // dd($visibleColumnNames);
+        // Override file_name for recursiveFollowupReport to match followupReport behavior
+        if ($report_name === "recursiveFollowupReport") {
+           $report_name = "followupReport"; // Ensure it uses the same file_name
+        }
+
+        // dd($data['file_name']);
+    
         // Dynamically load the view based on the report name
         $viewName = 'minireportb1::MiniReportB1.multitable.' . $report_name;
     
@@ -199,85 +235,6 @@ class MultiTableController extends Controller
     }
 
 
-    public function multiViewManager1(Request $request, $id = null)
-    {
-        // Check user permissions
-        $is_admin = $this->businessUtil->is_admin(auth()->user());
-        if (!$is_admin && !auth()->user()->hasAnyPermission(['sell.view', 'sell.create', 'direct_sell.access', 'direct_sell.view', 'view_own_sell_only', 'view_commission_agent_sell', 'access_shipping', 'access_own_shipping', 'access_commission_agent_shipping', 'so.view_all', 'so.view_own'])) {
-            abort(403, 'Unauthorized action.');
-        }
-    
-        $business_id = request()->session()->get('user.business_id');
-    
-        // Get folders as a collection
-        $folders = MiniReportB1Folder::where('business_id', $business_id)
-            ->where('type', 'report_section')
-            ->get();
-    
-        // Initialize variables for file-specific data
-        $visibleColumnNames = [];
-        $filterCriteria = [];
-        $file_name = null;
-        $report_name = null;
-        $data = [];
-        $columnMapping = [];
-    
-        // If an ID is provided, retrieve the file and its layout
-        if ($id) {
-            $file = MiniReportB1File::where('id', $id)
-                ->where('business_id', $business_id)
-                ->first();
-    
-            if (!$file) {
-                abort(404, 'File not found');
-            }
-    
-            // Decode JSON layout
-            $layout = json_decode($file->layout, true);
-            $file_name = $file->file_name;
-            $report_name = $layout['reportName'];
-    
-            // Get visible column names and filter criteria from the layout
-            $visibleColumnNames = $layout['visibleColumnNames'] ?? [];
-            $filterCriteria = $layout['filterCriteria'] ?? [];
-        }
-    
-        // Fetch data based on the report name (if provided)
-        switch ($report_name) {
-            case "saleReport":
-                // Call the SaleData function to fetch sales data and column mapping
-                $result = $this->SaleData($request, $visibleColumnNames);
-                $data = $result['data'];
-                $columnMapping = $result['columnMapping'];
-                break;
-    
-            case "purchaseReport":
-                // Call the purchaseData function to fetch purchase data and column mapping
-                $result = $this->purchaseData($request, $visibleColumnNames);
-                $data = $result['data'];
-                $columnMapping = $result['columnMapping'];
-                break;
-    
-            default:
-                // Default data if no report name is provided
-                $data = [];
-                break;
-        }
-    
-        // Merge all data to pass to the view
-        $mergedData = [
-            'folders' => $folders,
-            'visibleColumnNames' => $visibleColumnNames,
-            'filterCriteria' => $filterCriteria,
-            'file_name' => $file_name,
-            'report_name' => $report_name,
-            'data' => $data, // Pass the filtered data to the view
-            'columnMapping' => $columnMapping, // Pass the column mapping to the view
-        ];
-    
-        // Return the view with the merged data
-        return view('minireportb1::MiniReportB1.multitable.multiview', $mergedData);
-    }
 
     public function SaleData(Request $request, $columnsToShow = [])
     {

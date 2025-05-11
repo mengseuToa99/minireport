@@ -203,109 +203,7 @@
     }
 </style>
 
-{{-- print button animation --}}
-<style>
-    button.print-button {
-        width: 50px;
-        /* Smaller width */
-        height: 50px;
-        /* Smaller height */
-    }
 
-    span.print-icon,
-    span.print-icon::before,
-    span.print-icon::after,
-    button.print-button:hover .print-icon::after {
-        border: solid 2px #0f8800;
-        /* Updated color */
-    }
-
-    span.print-icon::after {
-        border-width: 1px;
-        /* Thinner border */
-    }
-
-    button.print-button {
-        margin-top: 8px;
-        position: relative;
-        padding: 0;
-        border: 0;
-        background: transparent;
-    }
-
-    span.print-icon,
-    span.print-icon::before,
-    span.print-icon::after,
-    button.print-button:hover .print-icon::after {
-        box-sizing: border-box;
-        background-color: #fff;
-    }
-
-    span.print-icon {
-        position: relative;
-        display: inline-block;
-        padding: 0;
-        margin-top: 20%;
-
-        width: 60%;
-        /* Adjusted width */
-        height: 35%;
-        /* Adjusted height */
-        background: #fff;
-        border-radius: 20% 20% 0 0;
-    }
-
-    span.print-icon::before {
-        content: "";
-        position: absolute;
-        bottom: 100%;
-        left: 12%;
-        right: 12%;
-        height: 110%;
-
-        transition: height .2s .15s;
-    }
-
-    span.print-icon::after {
-        content: "";
-        position: absolute;
-        top: 55%;
-        left: 12%;
-        right: 12%;
-        height: 0%;
-        background: #fff;
-        background-repeat: no-repeat;
-        background-size: 70% 90%;
-        background-position: center;
-        background-image: linear-gradient(to top,
-                #fff 0, #fff 14%,
-                #0f8800 14%, #0f8800 28%,
-                /* Updated color */
-                #fff 28%, #fff 42%,
-                #0f8800 42%, #0f8800 56%,
-                /* Updated color */
-                #fff 56%, #fff 70%,
-                #0f8800 70%, #0f8800 84%,
-                /* Updated color */
-                #fff 84%, #fff 100%);
-
-        transition: height .2s, border-width 0s .2s, width 0s .2s;
-    }
-
-    button.print-button:hover {
-        cursor: pointer;
-    }
-
-    button.print-button:hover .print-icon::before {
-        height: 0px;
-        transition: height .2s;
-    }
-
-    button.print-button:hover .print-icon::after {
-        height: 120%;
-        transition: height .2s .15s, border-width 0s .16s;
-    }
-</style>
 
 <style>
     .excel-button {
@@ -420,13 +318,7 @@
 </style>
 
 
-<style>
-    @media print {
-        .no-print {
-            display: none;
-        }
-    }
-</style>
+
 
 
 <div class="report-filters">
@@ -542,8 +434,3 @@
     });
 </script>
 
-<script>
-    $('#print-button').on('click', function() {
-        window.print();
-    });
-</script>

@@ -24,15 +24,21 @@ use Modules\MiniReportB1\Http\Controllers\SaleController;
 use Modules\MiniReportB1\Entities\Report;
 use PDF;
 use App\Utils\ProductUtil;
-
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\PurchaseController;
 use Modules\Essentials\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ExpenseController;
 use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Exp;
+use Modules\Crm\Http\Controllers\ScheduleController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ManageUserController;
+
 
 use App\Business;
+use App\CustomerGroup;
+use Razorpay\Api\Customer;
 
 class MiniReportB1Controller extends Controller
 {
@@ -46,6 +52,10 @@ class MiniReportB1Controller extends Controller
     protected $payroll;
     protected $product;
     protected $expense;
+    protected $followup;
+    protected $customer;
+    protected $account;
+    protected $employee;
 
 
     /**
@@ -61,7 +71,11 @@ class MiniReportB1Controller extends Controller
         PurchaseController $purchase,
         PayrollController $payroll,
         ProductController $product,
-        ExpenseController $expense
+        ExpenseController $expense,
+        ScheduleController $followup,
+        ContactController $customer,
+        AccountController $account,
+        ManageUserController $employee,
     ) {
         $this->productUtil = $productUtil;
         $this->transactionUtil = $transactionUtil;
@@ -73,9 +87,93 @@ class MiniReportB1Controller extends Controller
         $this->payroll = $payroll;
         $this->product = $product;
         $this->expense = $expense;
+        $this->followup = $followup;
+        $this->customer = $customer;
+        $this->account = $account;
+        $this->employee = $employee;
     }
 
 
+    function supplier(Request $request) // Remove "= null"
+    {
+        // Set the 'type' parameter to 'customer' in the request
+        $request->merge(['type' => 'supplier']);
+
+        // Call the index method
+        $response = $this->customer->index();
+
+        // Check if the response is a redirect
+        if ($response instanceof \Illuminate\Http\RedirectResponse) {
+            return $response; // Or throw an exception
+        }
+
+        // If the response is a view, extract the data and pass it to your view
+        if ($response instanceof \Illuminate\View\View) {
+            $data = $response->getData(); // Get the data passed to the view
+            return view('minireportb1::MiniReportB1.multitable.supplierReport', (array) $data);
+        }
+
+        // Handle other cases (e.g., JSON response)
+        return $response;
+    }
+
+
+    function employee(Request $response)
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        $response = $this->employee->index();
+        // dd($response);
+        $data = (array) $response->getData();
+
+        return view('minireportb1::MiniReportB1.multitable.employeeReport', $data);
+    }
+
+
+    function account(Request $response)
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        $response = $this->followup->index();
+        // dd($response);
+        $data = (array) $response->getData();
+
+        return view('minireportb1::MiniReportB1.multitable.accountReport', $data);
+    }
+
+    function customer(Request $request) // Remove "= null"
+    {
+        // Set the 'type' parameter to 'customer' in the request
+        $request->merge(['type' => 'customer']);
+
+        // Call the index method
+        $response = $this->customer->index();
+
+        // Check if the response is a redirect
+        if ($response instanceof \Illuminate\Http\RedirectResponse) {
+            return $response; // Or throw an exception
+        }
+
+        // If the response is a view, extract the data and pass it to your view
+        if ($response instanceof \Illuminate\View\View) {
+            $data = $response->getData(); // Get the data passed to the view
+            return view('minireportb1::MiniReportB1.multitable.customerReport', (array) $data);
+        }
+
+        // Handle other cases (e.g., JSON response)
+        return $response;
+    }
+
+    function followup(Request $request)
+    {
+        $business_id = request()->session()->get('user.business_id');
+
+        $response = $this->followup->index();
+        // dd($response);
+        $data = (array) $response->getData();
+
+        return view('minireportb1::MiniReportB1.multitable.followupReport', $data);
+    }
 
     function expense(Request $request)
     {
@@ -270,10 +368,7 @@ class MiniReportB1Controller extends Controller
             $consolidatedData['dataMapping'] = array_merge($consolidatedData['dataMapping'], $salesData['dataMapping']);
 
             return $consolidatedData;
-        } catch (\Exception $e) {
-            \Log::error("Error in getConsolidatedData: " . $e->getMessage());
-            \Log::error($e->getTraceAsString());
-            throw $e;
+        } catch (\Exception $e) {            throw $e;
         }
     }
 
@@ -310,6 +405,175 @@ class MiniReportB1Controller extends Controller
             ],
             'dataMapping' => $this->formatDataForMapping($salesData)
         ];
+    }
+
+
+    ///////////////////////////////////////////////
+    //                                           //
+    //             View File                     //
+    //                                           //
+    ///////////////////////////////////////////////
+
+    public function multiViewManager(Request $request, $id = null)
+    {
+        // Check user permissions
+        $is_admin = $this->businessUtil->is_admin(auth()->user());
+        if (!$is_admin && !auth()->user()->hasAnyPermission(['sell.view', 'sell.create', 'direct_sell.access', 'direct_sell.view', 'view_own_sell_only', 'view_commission_agent_sell', 'access_shipping', 'access_own_shipping', 'access_commission_agent_shipping', 'so.view_all', 'so.view_own'])) {
+            abort(403, 'Unauthorized action.');
+        }
+    
+        $business_id = request()->session()->get('user.business_id');
+    
+        // Get folders as a collection
+        $folders = MiniReportB1Folder::where('business_id', $business_id)
+            ->where('type', 'report_section')
+            ->get();
+    
+        // Initialize variables for file-specific data
+        $file_name = null;
+        $report_name = null;
+        $visibleColumnNames = [];
+        $filterCriteria = [];
+        $data = [];
+    
+        // If an ID is provided, retrieve the file and its layout
+        if ($id) {
+            $file = MiniReportB1File::where('id', $id)
+                ->where('business_id', $business_id)
+                ->first();
+    
+            if (!$file) {
+                abort(404, 'File not found');
+            }
+    
+            // Decode JSON layout
+            $layout = json_decode($file->layout, true);
+            $file_name = $file->file_name;
+            $report_name = $layout['reportName'] ?? null;
+            $visibleColumnNames = $layout['visibleColumnNames'] ?? [];
+            $filterCriteria = $layout['filterCriteria'] ?? [];
+            $tab = null;
+        }
+    
+        // Fetch data based on the report name (if provided)
+        switch ($report_name) {
+            case "saleReport":
+                $response = $this->sell->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "purchaseReport":
+                $response = $this->purchase->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "productReport":
+                $response = $this->product->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "PayRollReport":
+                $response = $this->payroll->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "stockReport":
+                $response = $this->product->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "expenseReport":
+                $response = $this->expense->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "pay_componentsReport":
+                $response = $this->payroll->index();
+                $data = (array) $response->getData();
+                break;
+    
+            case "followupReport":
+                $response = $this->followup->index();
+                $data = (array) $response->getData();
+                $data['file_name'] = $file_name; // Use the original file_name
+                $data['tab'] = "followupReport";
+                break;
+    
+            case "recursiveFollowupReport":
+                $response = $this->followup->index(); // Adjust if different method needed
+                $data = (array) $response->getData();
+                $data['file_name'] = $file_name; // Use the same file_name as followupReport
+                $data['tab'] = "recursiveFollowupReport";
+                break;
+    
+            case "customerReport":
+                // Set the 'type' parameter to 'customer' in the request
+                $request->merge(['type' => 'customer']);
+    
+                // Call the index method
+                $response = $this->customer->index();
+    
+                // Check if the response is a redirect
+                if ($response instanceof \Illuminate\Http\RedirectResponse) {
+                    return $response; // Or throw an exception
+                }
+    
+                // If the response is a view, extract the data and pass it to your view
+                if ($response instanceof \Illuminate\View\View) {
+                    $data = (array) $response->getData(); // Get the data passed to the view
+                }
+                break;
+
+            case "supplierReport":
+                // Set the 'type' parameter to 'customer' in the request
+                $request->merge(['type' => 'supplier']);
+    
+                // Call the index method
+                $response = $this->customer->index();
+    
+                // Check if the response is a redirect
+                if ($response instanceof \Illuminate\Http\RedirectResponse) {
+                    return $response; // Or throw an exception
+                }
+    
+                // If the response is a view, extract the data and pass it to your view
+                if ($response instanceof \Illuminate\View\View) {
+                    $data = (array) $response->getData(); // Get the data passed to the view
+                }
+                break;
+    
+            case "employeeReport":
+                $response = $this->employee->index();
+                $data = (array) $response->getData();
+                break;
+    
+            default:
+                $data = [];
+                break;
+        }
+    
+        // Add folders, file-specific data, and visibleColumnNames to the response
+        $data['folders'] = $folders;
+        $data['file_name'] = $file_name; // Default assignment, overridden by switch if set
+        $data['report_name'] = $report_name;
+        $data['visibleColumnNames'] = $visibleColumnNames;
+        $data['filterCriteria'] = $filterCriteria;
+    
+        // Override file_name for recursiveFollowupReport to match followupReport behavior
+        if ($report_name === "recursiveFollowupReport") {
+            $report_name = "followupReport"; // Ensure it uses the same file_name
+        }
+    
+        // Dynamically load the view based on the report name
+        $viewName = 'minireportb1::MiniReportB1.multitable.' . $report_name;
+    
+        // Check if the view exists
+        if (!view()->exists($viewName)) {
+            abort(404, "View for report '$report_name' not found.");
+        }
+    
+        // Return the view with the merged data
+        return view($viewName, $data);
     }
 
     protected function getLimitedPurchaseData($business_id)
@@ -380,9 +644,6 @@ class MiniReportB1Controller extends Controller
 
             return view('minireportb1::MiniReportB1.create', $viewData);
         } catch (\Exception $e) {
-            \Log::error("Error in index: " . $e->getMessage());
-            \Log::error($e->getTraceAsString());
-
             if (request()->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -396,25 +657,22 @@ class MiniReportB1Controller extends Controller
             ]);
         }
     }
-    
+
     public function dashboard()
     {
         // Get the business ID from the session
         $business_id = request()->session()->get('user.business_id');
-    
+
         // Check if the user is authorized to access this module
-        $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
-        if (!auth()->user()->can('module.minireportb1') && !auth()->user()->can('superadmin') && !$is_admin) {
-            abort(403, 'Unauthorized action.');
-        }
-    
+
+
         // Fetch the business details
         $business = Business::findOrFail($business_id);
-    
+
         // Get the totals
         $total_minireportb1 = MiniReportB1::where('business_id', $business_id)->count();
         $total_minireportb1_category = MiniReportB1Category::where('business_id', $business_id)->count();
-    
+
         // Get category data
         $minireportb1_category = DB::table('minireportb1_main as minireportb1')
             ->leftJoin('minireportb1_category as minireportb1category', 'minireportb1.category_id', '=', 'minireportb1category.id')
@@ -425,18 +683,18 @@ class MiniReportB1Controller extends Controller
             ->where('minireportb1.business_id', $business_id)
             ->groupBy('minireportb1category.id')
             ->get();
-    
+
         // Get folders ordered by their order field
         $folders = MiniReportB1Folder::where('business_id', $business_id)
             ->orderBy('order')
             ->get();
-    
+
         // Get files
         $files = MiniReportB1File::where('business_id', $business_id)->get();
-    
+
         // Construct the full logo path if it exists
         $business_logo = $business->logo ? '/uploads/business_logos/' . $business->logo : null;
-    
+
         // Return the view with all necessary data
         return view('minireportb1::MiniReportB1.dashboard')
             ->with(array_merge(
@@ -463,9 +721,7 @@ class MiniReportB1Controller extends Controller
 
         $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
 
-        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
-            abort(403, 'Unauthorized action.');
-        }
+        
 
         // Get the totals
         $total_minireportb1 = MiniReportB1::where('business_id', $business_id)->count();
@@ -501,85 +757,74 @@ class MiniReportB1Controller extends Controller
             ));
     }
 
-/**
- * Store a newly created report
- *
- * @param Request $request
- * @return \Illuminate\Http\JsonResponse
- */
-public function create(Request $request)
-{
-    try {
-        $business_id = $request->session()->get('user.business_id');
+    /**
+     * Store a newly created report
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function create(Request $request)
+    {
+        try {
+            $business_id = $request->session()->get('user.business_id');
 
-        // Get the raw request content
-        $rawContent = $request->getContent();
+            // Get the raw request content
+            $rawContent = $request->getContent();
 
-        // Log the raw content for debugging
-        \Log::debug('Raw request content:', ['content' => $rawContent]);
+            // Log the raw content for debugging
+            // Decode the JSON content manually to ensure proper handling
+            $input = json_decode($rawContent, true);
 
-        // Decode the JSON content manually to ensure proper handling
-        $input = json_decode($rawContent, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            \Log::error('JSON decode error: ' . json_last_error_msg());
-            return response()->json([
-                'success' => false,
-                'msg' => 'Invalid JSON data: ' . json_last_error_msg()
-            ], 400, [], JSON_UNESCAPED_UNICODE);
-        }
-
-        // Validate required fields
-        if (empty($input['file_name'])) {
-            return response()->json([
-                'success' => false,
-                'msg' => 'Report name is required'
-            ], 400, [], JSON_UNESCAPED_UNICODE);
-        }
-
-        // Create the report
-        $report = new MiniReportB1();
-        $report->business_id = $business_id;
-        $report->name = $input['file_name'];
-        $report->parent_id = $input['parent_id'] ?? null;
-
-        // Handle table_data
-        $tableData = $input['table_data'];
-
-        // If table_data is a string (already JSON), decode it first
-        if (is_string($tableData)) {
-            $tableData = json_decode($tableData, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                \Log::error('Failed to decode table_data: ' . json_last_error_msg());
-                // Use it as is if decode fails
-                $tableData = $input['table_data'];
+            if (json_last_error() !== JSON_ERROR_NONE) {                return response()->json([
+                    'success' => false,
+                    'msg' => 'Invalid JSON data: ' . json_last_error_msg()
+                ], 400, [], JSON_UNESCAPED_UNICODE);
             }
+
+            // Validate required fields
+            if (empty($input['file_name'])) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => 'Report name is required'
+                ], 400, [], JSON_UNESCAPED_UNICODE);
+            }
+
+            // Create the report
+            $report = new MiniReportB1();
+            $report->business_id = $business_id;
+            $report->name = $input['file_name'];
+            $report->parent_id = $input['parent_id'] ?? null;
+
+            // Handle table_data
+            $tableData = $input['table_data'];
+
+            // If table_data is a string (already JSON), decode it first
+            if (is_string($tableData)) {
+                $tableData = json_decode($tableData, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {                    // Use it as is if decode fails
+                    $tableData = $input['table_data'];
+                }
+            }
+
+            // Store the data as JSON with options to preserve Unicode characters
+            $report->data = json_encode($tableData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+
+            // Log the encoded data for debugging
+            // Save the report
+            $report->save();
+
+            return response()->json([
+                'success' => true,
+                'msg' => 'Report saved successfully',
+                'report_id' => $report->id
+            ], 200, [], JSON_UNESCAPED_UNICODE);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'msg' => 'Failed to save report: ' . $e->getMessage()
+            ], 500, [], JSON_UNESCAPED_UNICODE);
         }
-
-        // Store the data as JSON with options to preserve Unicode characters
-        $report->data = json_encode($tableData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
-
-        // Log the encoded data for debugging
-        \Log::debug('Encoded data to save:', ['data' => $report->data]);
-
-        // Save the report
-        $report->save();
-
-        return response()->json([
-            'success' => true,
-            'msg' => 'Report saved successfully',
-            'report_id' => $report->id
-        ], 200, [], JSON_UNESCAPED_UNICODE);
-    } catch (\Exception $e) {
-        \Log::error('Failed to save report: ' . $e->getMessage());
-        \Log::error($e->getTraceAsString());
-
-        return response()->json([
-            'success' => false,
-            'msg' => 'Failed to save report: ' . $e->getMessage()
-        ], 500, [], JSON_UNESCAPED_UNICODE);
     }
-}
 
 
     public function show($id)
@@ -590,9 +835,7 @@ public function create(Request $request)
 
         $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
 
-        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
-            abort(403, 'Unauthorized action.');
-        }
+        
 
         $minireportb1 = MiniReportB1::where('business_id', $business_id)->findOrFail($id);
 
@@ -602,8 +845,6 @@ public function create(Request $request)
     public function store(Request $request)
     {
         try {
-            \Log::info('Received file creation request', $request->all());
-
             $request->validate([
                 'file_name' => 'required|string|max:255',
                 'parent_id' => 'required|integer',
@@ -637,18 +878,13 @@ public function create(Request $request)
             ]);
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Error in store method', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'msg' => 'Error saving file: ' . $e->getMessage()
             ], 500);
         }
     }
+    
 
     public function edit(Request $request, $id)
     {
@@ -658,9 +894,7 @@ public function create(Request $request)
 
         $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
 
-        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
-            abort(403, 'Unauthorized action.');
-        }
+
 
 
 
@@ -742,9 +976,7 @@ public function create(Request $request)
 
         $is_admin = $this->moduleUtil->is_admin(auth()->user(), $business_id);
 
-        if ((! auth()->user()->can('module.minireportb1')) && ! auth()->user()->can('superadmin') && ! $is_admin) {
-            abort(403, 'Unauthorized action.');
-        }
+
 
         if (request()->ajax()) {
             $categories = MiniReportB1Category::where('business_id', $business_id)->get();
@@ -766,33 +998,20 @@ public function create(Request $request)
         try {
             // Get business ID from session
             $business_id = request()->session()->get('user.business_id');
-
-            \Log::info('Starting viewFile method', [
-                'file_id' => $id,
-                'business_id' => $business_id
-            ]);
-
             // Basic file retrieval
             $file = MiniReportB1File::where('id', $id)
                 ->where('business_id', $business_id)
                 ->first();
 
-            if (!$file) {
-                \Log::error('File not found or unauthorized', ['file_id' => $id]);
-                throw new \Exception('File not found or unauthorized');
+            if (!$file) {                throw new \Exception('File not found or unauthorized');
             }
 
             // Decode JSON layout
             $layout = json_decode($file->layout, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                \Log::error('JSON decode error', ['error' => json_last_error_msg()]);
-                throw new \Exception('Invalid file layout format');
+            if (json_last_error() !== JSON_ERROR_NONE) {                throw new \Exception('Invalid file layout format');
             }
 
             $visibleColumnNames = $layout['visibleColumnNames'] ?? [];
-
-            \Log::info('Retrieved visible columns', ['columns' => $visibleColumnNames]);
-
             $businessLocations = DB::table('business_locations')
                 ->where('business_id', $business_id)
                 ->pluck('name', 'id');
@@ -828,14 +1047,8 @@ public function create(Request $request)
                     'contacts.mobile',
                     'business_locations.name'
                 );
-
-            \Log::info('Executing query');
-
             // Execute query
             $results = $query->get();
-
-            \Log::info('Query executed successfully', ['row_count' => $results->count()]);
-
             // Format the results
             $formattedRows = [];
             foreach ($results as $result) {
@@ -852,9 +1065,6 @@ public function create(Request $request)
 
             $customers = Contact::customersDropdown($business_id, false);
             $payment_types = $this->transactionUtil->payment_types(null, true, $business_id);
-
-            \Log::info('Returning view with data');
-
             // Return the view
             return view('minireportb1::MiniReportB1.view', [
                 'file' => $file,
@@ -865,12 +1075,6 @@ public function create(Request $request)
                 'payment_types' => '$payment_types'
             ]);
         } catch (\Exception $e) {
-            \Log::error('ViewFile Error', [
-                'message' => $e->getMessage(),
-                'file_id' => $id,
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return redirect()
                 ->route('minireportb1.index')
                 ->with('error', 'Error viewing file: ' . $e->getMessage());
@@ -1074,11 +1278,7 @@ public function create(Request $request)
             }
 
             return $filteredData;
-        } catch (\Exception $e) {
-            \Log::error('Error applying column filter', [
-                'error' => $e->getMessage()
-            ]);
-            return [];
+        } catch (\Exception $e) {            return [];
         }
     }
 }

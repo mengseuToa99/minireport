@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', __('minireportb1::lang.MiniReportB1'))
+@section('title', __('minireportb1::minireportb1.MiniReportB1'))
 @section('content')
     @includeIf('minireportb1::layouts.nav')
     <!-- Content Header (Page header) -->

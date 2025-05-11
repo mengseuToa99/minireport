@@ -54,13 +54,15 @@ class MiniReportB1ServiceProvider extends ServiceProvider
                 if ($business) {
                     $business_name = $business->name;
                     $business_logo = $business->logo ? '/uploads/business_logos/' . $business->logo : null;
+                    
+                  
                 }
             }
         
             // Share the data with all views
             $view->with([
                 'business_name' => $business_name,
-                'business_logo' => $business_logo, // Ensure this variable is defined
+                'business_logo' => $business_logo,
             ]);
         });
     
@@ -83,7 +85,8 @@ class MiniReportB1ServiceProvider extends ServiceProvider
             $this->publishes([
                 $sourcePath => $targetPath,
                 module_path($this->moduleName, 'Resources/assets/css/reusable-table.css') => public_path('modules/' . $this->moduleNameLower . '/css/reusable-table.css'),
-                module_path($this->moduleName, 'Resources/assets/css/printjs.css') => public_path('modules/' . $this->moduleNameLower . '/css/printjs.css')
+                module_path($this->moduleName, 'Resources/assets/css/printjs.css') => public_path('modules/' . $this->moduleNameLower . '/css/printjs.css'),
+                module_path($this->moduleName, 'Resources/assets/js/language-handler.js') => public_path('modules/' . $this->moduleNameLower . '/js/language-handler.js')
 
             ], 'assets');
 
@@ -179,15 +182,15 @@ class MiniReportB1ServiceProvider extends ServiceProvider
      * Register translations.
      */
     public function registerTranslations()
-    {
-        $langPath = resource_path('lang/modules/minireportb1');
+{
+    $langPath = resource_path('lang/modules/' . $this->moduleNameLower);
 
-        if (is_dir($langPath)) {
-            $this->loadTranslationsFrom($langPath, 'minireportb1');
-        } else {
-            $this->loadTranslationsFrom(__DIR__.'/../Resources/lang', 'minireportb1');
-        }
+    if (is_dir($langPath)) {
+        $this->loadTranslationsFrom($langPath, $this->moduleNameLower);
+    } else {
+        $this->loadTranslationsFrom(module_path($this->moduleName, 'Resources/lang'), $this->moduleNameLower);
     }
+}
 
 
 

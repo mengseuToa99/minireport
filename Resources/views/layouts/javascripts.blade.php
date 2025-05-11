@@ -102,6 +102,7 @@
 @endif
 
 <script src="{{ asset('modules/minireportb1/js/minireport.js') }}"></script>
+<script src="{{ asset('modules/minireportb1/js/language-handler.js') }}"></script>
 <script src="{{ asset('js/functions.js?v=' . $asset_v) }}"></script>
 {{-- <script src="{{ asset('js/common.js?v=' . $asset_v) }}"></script> --}}
 <script src="{{ asset('js/app.js?v=' . $asset_v) }}"></script>

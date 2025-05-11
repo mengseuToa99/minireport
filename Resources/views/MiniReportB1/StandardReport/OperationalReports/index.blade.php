@@ -1,8 +1,8 @@
 @component('components.widget', ['class' => 'box-solid'])
-    <div class="section-header" onclick="toggleSection('payrollSection1')">
-        <i class="fas fa-chevron-down"></i> OperationalReports
+    <div class="section-header" onclick="toggleSection('payrollSection12')">
+        <i class="fas fa-chevron-down"></i> របាយការណ៍ប្រតិបត្តិការ
     </div>
-    <div id="payrollSection1">
+    <div id="payrollSection12">
         <table class="table">
             <tr>
                 <!-- Column 1 (40%) -->
@@ -11,7 +11,7 @@
                     <div class="col-md-6 report-item" data-title="Profit / Loss Report">
                         <div class="report-box">
                             <a href="{{ route('standardreport.profit_loss') }}" class="report-link">
-                                <span>Profit / Loss Report</span>
+                                <span>របាយការណ៍ចំណេញ / ខាត</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -24,7 +24,7 @@
                     <div class="col-md-6 report-item" data-title="Tax Report">
                         <div class="report-box">
                             <a href="{{ route('standardreport.tax_report') }}" class="report-link">
-                                <span>Tax Report</span>
+                                <span>របាយការណ៍ពន្ធ</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -38,7 +38,7 @@
                     <div class="col-md-6 report-item" data-title="Expense Report">
                         <div class="report-box">
                             <a href="{{ route('standardreport.get_expense') }}" class="report-link">
-                                <span>Expense Report</span>
+                                <span>របាយការណ៍ចំណាយ</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -51,7 +51,7 @@
                     <div class="col-md-6 report-item" data-title="Register Report">
                         <div class="report-box">
                             <a href="{{ route('standardreport.get_register') }}" class="report-link">
-                                <span>Register Report</span>
+                                <span>របាយការណ៍ចុះឈ្មោះ</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -66,7 +66,7 @@
                     <div class="col-md-6 report-item" data-title="Activity Log">
                         <div class="report-box">
                             <a href="{{ route('standardreport.get_activitylog') }}" class="report-link">
-                                <span>Activity Log</span>
+                                <span>កំណត់ហេតុសកម្មភាព</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>

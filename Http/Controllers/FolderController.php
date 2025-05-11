@@ -65,9 +65,7 @@ class FolderController extends Controller
                     'type' => $folder->type
                 ]
             ]);
-        } catch (\Exception $e) {
-            \Log::error($e->getMessage());
-            return response()->json([
+        } catch (\Exception $e) {            return response()->json([
                 'success' => false,
                 'msg' => 'Error creating section'
             ]);
@@ -136,9 +134,7 @@ class FolderController extends Controller
                     'parent_id' => $file->parent_id
                 ]
             ]);
-        } catch (\Exception $e) {
-            \Log::error($e->getMessage());
-            return response()->json([
+        } catch (\Exception $e) {            return response()->json([
                 'success' => false,
                 'msg' => 'Error creating file'
             ]);
@@ -216,9 +212,7 @@ class FolderController extends Controller
                 return response()->json(['success' => true]);
             }
             return response()->json(['success' => false]);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return response()->json(['success' => false]);
+        } catch (\Exception $e) {            return response()->json(['success' => false]);
         }
     }
 
@@ -232,9 +226,7 @@ class FolderController extends Controller
                     ->update(['order' => $index]);
             }
             return response()->json(['success' => true]);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return response()->json(['success' => false]);
+        } catch (\Exception $e) {            return response()->json(['success' => false]);
         }
     }
 
@@ -324,9 +316,7 @@ class FolderController extends Controller
                 return response()->json(['success' => true]);
             }
             return response()->json(['success' => false]);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return response()->json(['success' => false]);
+        } catch (\Exception $e) {            return response()->json(['success' => false]);
         }
     }
 } 

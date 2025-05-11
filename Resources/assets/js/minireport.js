@@ -1,9 +1,5 @@
 // This file contains all common functionality for the application
 
-
-
-
-
 $(document).on('submit', 'form', function (e) {
     if (!__is_online()) {
         e.preventDefault();
@@ -147,16 +143,24 @@ $(document).ready(function () {
     __currency_convert_recursively($(document), $('input#p_symbol').length);
 
     var buttons = [
-      
+        {
+            text: '<i class="fa fa-save" aria-hidden="true"></i> ' + (LANG.save || 'Save'),
+            className:
+                'tw-dw-btn tw-bg-gradient-to-r tw-from-indigo-600 tw-to-blue-500 tw-font-bold tw-text-white tw-border-none tw-rounded-full pull-right tw-ml-4 tw-mb-8',
+            action: function (e, dt, node, config) {
+                // Call the function to submit/save the configuration
+                createFile();
+            },
+        },
         {
             extend: 'colvis',
-            text: '<i class= "text-primary fa fa-cog" aria-hidden="true"></i> ' ,
+            text: '<i class= "text-primary fa fa-cog" aria-hidden="true"></i> ',
             className: 'text-primary tw-dw-btn-xs  tw-dw-btn tw-dw-btn-outline tw-my-2',
         },
-        
+
         {
             extend: 'csv',
-            text: '<i class="text-info fa fa-file-csv" aria-hidden="true"></i> ' ,
+            text: '<i class="text-info fa fa-file-csv" aria-hidden="true"></i> ',
             className: 'text-info tw-dw-btn-xs  tw-dw-btn tw-dw-btn-outline tw-my-2',
             exportOptions: {
                 columns: ':visible',
@@ -165,7 +169,7 @@ $(document).ready(function () {
         },
         {
             extend: 'excel',
-            text: '<i class="text-success fa fa-file-excel" aria-hidden="true"></i> ' ,
+            text: '<i class="text-success fa fa-file-excel" aria-hidden="true"></i> ',
             className: 'text-success tw-dw-btn-xs  tw-dw-btn tw-dw-btn-outline tw-my-2',
             exportOptions: {
                 columns: ':visible',
@@ -174,7 +178,7 @@ $(document).ready(function () {
         },
         {
             extend: 'print',
-            text: '<i class=" text-waring fa fa-print" aria-hidden="true"></i> ' ,
+            text: '<i class=" text-waring fa fa-print" aria-hidden="true"></i> ',
             className: 'text-warning tw-dw-btn-xs  tw-dw-btn tw-dw-btn-outline tw-my-2',
             exportOptions: {
                 columns: ':visible',
@@ -189,7 +193,6 @@ $(document).ready(function () {
                 const fileName = $('#file-name-container').data('file-name') || 'Print Preview';
 
                 // Log the file name to the console for debugging
-                console.log('File Name:', fileName);
 
                 const designButtonUrl = "{{ route('minireportb1.createlayout') }}";
                 // Inject HTML, CSS, and JavaScript into the blank page
@@ -537,7 +540,7 @@ $(document).ready(function () {
         },
         {
             extend: 'pdf',
-            text: '<i class="text-danger fa fa-file-pdf" aria-hidden="true"></i> ' ,
+            text: '<i class="text-danger fa fa-file-pdf" aria-hidden="true"></i> ',
             className: 'text-danger tw-dw-btn-xs  tw-dw-btn tw-dw-btn-outline tw-my-2',
             exportOptions: {
                 columns: ':visible',
@@ -554,70 +557,6 @@ $(document).ready(function () {
         //                         <path d="M5 12l14 0" />
         //                     </svg> @lang('messages.add')
         //                 </a>
-        {
-            text: '<i class="fa fa-save" aria-hidden="true"></i> ' + (LANG.save || 'Save'),
-            className: 'tw-dw-btn tw-bg-gradient-to-r tw-from-indigo-600 tw-to-blue-500 tw-font-bold tw-text-white tw-border-none tw-rounded-full pull-right tw-ml-4 tw-mb-8',
-
-            action: function (e, dt, node, config) {
-                var modalHtml = `
-                    <div class="modal fade" id="saveViewModal" tabindex="-1" role="dialog">
-                        <div class="modal-dialog" role="document">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Save View Configuration</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                </div>
-                                <div class="modal-body">
-                                    <form id="createFileForm">
-                                        <div class="form-group">
-                                            <label for="fileName">File Name</label>
-                                            <input type="text" class="form-control" id="fileName" name="file_name" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="parentFolder">Select Session</label>
-                                            <select class="form-control" id="parentFolder" name="parent_id" required>
-                                            </select>
-                                        </div>
-                                    </form>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                    <button type="button" class="btn btn-primary" onclick="createFile()">Save</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-
-                // Remove existing modal if any
-                $('#saveViewModal').remove();
-
-                // Add new modal to body
-                $('body').append(modalHtml);
-
-                // Load folders into select
-                $.ajax({
-                    url: '/minireportb1/get-folders',
-                    method: 'GET',
-                    success: function (response) {
-                        var select = $('#parentFolder');
-                        select.empty();
-                        response.data.forEach(function (folder) {
-                            if (folder.type === 'report_section') {
-                                select.append(new Option(folder.folder_name, folder.id));
-                            }
-                        });
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('Error loading folders:', error);
-                    },
-                });
-
-                // Show modal
-                $('#saveViewModal').modal('show');
-            },
-        },
     ];
 
     if (non_utf8_languages.indexOf(app_locale) == -1) {
@@ -630,8 +569,43 @@ $(document).ready(function () {
 
     // Add createFile function globally
     window.createFile = function () {
-        const fileName = $('#fileName').val();
-        const parentFolder = $('#parentFolder').val();
+        const fileData = localStorage.getItem('pendingFile'); // Use 'pendingFile' if that's your key
+
+        // Check if fileData exists and is valid JSON
+        if (!fileData) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No file data found in localStorage. Please save a file first.',
+            });
+            return;
+        }
+
+        let parsedData;
+        try {
+            parsedData = JSON.parse(fileData);
+        } catch (e) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Invalid file data in localStorage.',
+            });
+            console.error('JSON Parse Error:', e);
+            return;
+        }
+
+        // Ensure parsedData is an object
+        if (!parsedData || typeof parsedData !== 'object') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Invalid file data format in localStorage.',
+            });
+            return;
+        }
+
+        const fileName = parsedData.fileName || 'Untitled'; // Fallback if undefined
+        const parentFolder = parsedData.folderId || '';
 
         if (!fileName) {
             Swal.fire({
@@ -654,13 +628,14 @@ $(document).ready(function () {
         const table = $(tablename).DataTable();
 
         // Extract visible column names
-        const visibleColumnNames = [];
+        const visibleColumnIndexes = []; // Use a more descriptive name for the array
         table.columns().every(function (index) {
             if (this.visible()) {
-                const th = $(this.header());
-                visibleColumnNames.push(th.text().trim());
+                visibleColumnIndexes.push(index); // Push the column index instead of the name
             }
         });
+
+        console.log(visibleColumnIndexes); // This will output an array of visible column indexes
 
         // Capture filter criteria based on reportName
         let filterCriteria = {};
@@ -683,19 +658,15 @@ $(document).ready(function () {
 
             case 'purchaseReport':
                 filterCriteria = {
-                    locationId: $('#location_id').val(),
-                    expenseFor: $('#expense_for').val(),
-                    expenseContact: $('#expense_contact_filter').val(),
-                    expenseContactId: $('#expense_contact_id').val(),
-                    expenseSubCategoryId: $('#expense_sub_category_id_filter').val(),
-                    expenseCategoryId: $('#expense_category_id').val(),
-                    dateRange: $('#expense_date_range').val(),
-                    paymentStatus: $('#expense_payment_status').val(),
-                    auditStatus: $('#audit_status').val(),
+                    locationId: $('#purchase_list_filter_location_id').val(), // Modified ID
+                    supplierId: $('#purchase_list_filter_supplier_id').val(), // Added supplierId
+                    status: $('#purchase_list_filter_status').val(), // Added purchase status
+                    paymentStatus: $('#purchase_list_filter_payment_status').val(), //Correct ID
+                    dateRange: $('#purchase_list_filter_date_range').val(), //Modified ID
+                    //The rest are not present, so, it must be null/empty/ignored
                 };
                 break;
 
-            
             case 'payrollReport':
                 filterCriteria = {
                     dateRange: $('#month_year_filter').val(), // Updated to match the Blade template
@@ -705,7 +676,6 @@ $(document).ready(function () {
                     designationId: $('#designation_id').val(), // Updated to match the Blade template
                 };
                 break;
-            
 
             case 'productReport':
             case 'stockReport':
@@ -723,7 +693,7 @@ $(document).ready(function () {
                 };
                 break;
 
-            case 'exspenseReport':
+            case 'expenseReport':
                 filterCriteria = {
                     locationId: $('#location_id').val(),
                     expenseFor: $('#expense_for').val(),
@@ -737,6 +707,59 @@ $(document).ready(function () {
                 };
                 break;
 
+            case 'followupReport':
+                filterCriteria = {
+                    contactId: $('#contact_id_filter').val(),
+                    assignedTo: $('#assgined_to_filter').val(),
+                    status: $('#status_filter').val(),
+                    scheduleType: $('#schedule_type_filter').val(),
+                    dateRange: $('#follow_up_date_range').val(),
+                    followUpBy: $('#follow_up_by_filter').val(),
+                    followupCategoryId: $('#followup_category_id_filter').val(),
+                };
+
+            case 'customerReport':
+                filterCriteria = {
+                    hasSellDue: $('#has_sell_due').is(':checked') ? 1 : 0, // Checkbox returns 1 if checked, 0 if not
+                    hasStudyDate:$('#has_study_date').is(':checked') ? 1 : 0,
+                    hasExpiredDate:$('#has_expired_date').is(':checked') ? 1 : 0,
+                    hasRegisterDate:$('#has_register_date').is(':checked') ? 1 : 0,
+                    hasSellReturn: $('#has_sell_return').is(':checked') ? 1 : 0,
+                    hasAdvanceBalance: $('#has_advance_balance').is(':checked') ? 1 : 0,
+                    hasOpeningBalance: $('#has_opening_balance').is(':checked') ? 1 : 0,
+                    hasNoSellFrom: $('#has_no_sell_from').val(), // Select value (e.g., 'one_month')
+                    customerGroup: $('#cg_filter').val(), // Customer group filter
+                    assignedTo: $('#assigned_to').val(), // Assigned to user (if enabled)
+                    status: $('#status_filter').val(), // Status (active/inactive)
+                    searchKeyword: $('#search_keyword').val(), // Search keyword text
+                    dateRange: $('#contact_date_range').val(), // Date range
+                };
+                break;
+
+            case 'supplierReport':
+                filterCriteria = {
+                    hasPurchaseDue: $('#has_purchase_due').is(':checked') ? 1 : 0,
+                    hasPurchaseReturn: $('#has_purchase_return').is(':checked') ? 1 : 0,
+                    hasAdvanceBalance: $('#has_advance_balance').is(':checked') ? 1 : 0,
+                    hasOpeningBalance: $('#has_opening_balance').is(':checked') ? 1 : 0,
+                    assignedTo: $('#assigned_to').val(),
+                    status: $('#status_filter').val(),
+                    dateRange: $('#contact_date_range').val(),
+                };
+                break;
+
+            case 'employeeReport':
+                filterCriteria = {
+                    allowLogin: $('#allow_login').is(':checked') ? 1 : 0, // Checkbox returns 1 if checked, 0 if not
+                    notAllowLogin: $('#not_allow_login').is(':checked') ? 1 : 0, // Checkbox returns 1 if checked, 0 if not
+                    user: $('#user').val(), // Selected user ID
+                    role: $('#role').val(), // Selected role ID
+                    searchKeyword: $('#search_keyword').val(), // Search keyword text (if applicable)
+                    status: $('#status_filter').val(), // Status filter (e.g., active/inactive, if applicable)
+                    dateRange: $('#employee_date_range').val(), // Date range (if applicable)
+                };
+                break;
+
             default:
                 console.warn(`Unknown reportName: ${reportName}`);
                 break;
@@ -745,7 +768,7 @@ $(document).ready(function () {
         // Prepare data
         const tableData = {
             reportName: reportName,
-            visibleColumnNames: visibleColumnNames,
+            visibleColumnNames: visibleColumnIndexes,
             filterCriteria: filterCriteria,
         };
 
@@ -771,6 +794,7 @@ $(document).ready(function () {
                         timer: 1500,
                     }).then(() => {
                         console.log('Table Data:', tableData);
+                        window.location.href = '/minireportb1/MiniReportB1';
                     });
                 } else {
                     Swal.fire({
@@ -793,8 +817,7 @@ $(document).ready(function () {
         });
     };
 
-    var pdf_btn = {
-    };
+    var pdf_btn = {};
 
     if (non_utf8_languages.indexOf(app_locale) == -1) {
         buttons.push(pdf_btn);
@@ -804,7 +827,7 @@ $(document).ready(function () {
     jQuery.extend($.fn.dataTable.defaults, {
         fixedHeader: true,
         dom: '<"row margin-bottom-20"<"col-sm-4"l><"col-sm-4 text-center"f><"col-sm-4 text-right"B>>tip',
-        buttons: buttons,
+        buttons: buttons, // The modified buttons array
         aLengthMenu: [
             [25, 50, 100, 200, 500, 1000, -1],
             [25, 50, 100, 200, 500, 1000, LANG.all],

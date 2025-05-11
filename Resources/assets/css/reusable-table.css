@@ -1,17 +1,89 @@
 /* Reusable Table Component Styles */
 .reusable-table-container {
     overflow-x: auto;
-    margin: 16px ;
+    margin: 16px;
     background-color: white;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scrollbar-width: thin; /* Firefox */
+}
+
+/* Custom scrollbar for WebKit browsers */
+.reusable-table-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.reusable-table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.reusable-table-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.reusable-table-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Row limit controls */
+.row-limit-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+.row-limit-controls label {
+    margin-right: 8px;
+}
+
+.row-limit-controls select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    margin-right: 16px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pagination-btn {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.pagination-btn:hover {
+    background-color: #e9ecef;
+}
+
+.pagination-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.pagination-info {
+    font-size: 14px;
+    margin: 0 8px;
 }
 
 .reusable-table {
     width: 100%;
-    table-layout: fixed;
     border-collapse: collapse;
     margin: 10px 0;
     font-size: 14px;
     background-color: white;
+    table-layout: auto; /* Changed from fixed to auto for better responsiveness */
+    min-width: 800px; /* Ensures the table maintains a minimum width */
 }
 
 .reusable-table th,
@@ -21,27 +93,53 @@
     padding: 8px;
     border: 1px solid #000;
     background-color: white;
+    position: relative; /* For sticky columns */
 }
 
-/* Column width presets */
+/* Sticky first column option (can be enabled for specific tables) */
+.reusable-table.sticky-first-col th:first-child,
+.reusable-table.sticky-first-col td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: #f8f9fa;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.2);
+}
+
+/* Highlight row on hover */
+.reusable-table tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+/* Column width presets - more flexible for responsive design */
 .reusable-table .col-xs {
-    width: 5%;
+    min-width: 50px;
+    max-width: 80px;
+    text-align: center;
 }
 
 .reusable-table .col-sm {
-    width: 10%;
+    min-width: 80px;
+    max-width: 120px;
+    text-align: center;
 }
 
 .reusable-table .col-md {
-    width: 15%;
+    min-width: 100px;
+    max-width: 150px;
+    text-align: center;
 }
 
 .reusable-table .col-lg {
-    width: 25%;
+    min-width: 150px;
+    max-width: 250px;
+    text-align: center;
 }
 
 .reusable-table .col-xl {
-    width: 35%;
+    min-width: 200px;
+    max-width: 350px;
+    text-align: center;
 }
 
 /* Utility classes */
@@ -68,6 +166,20 @@
     object-fit: contain;
 }
 
+/* Header styling */
+.reusable-table thead th {
+    background-color: #f0f0f0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: 0 2px 5px -2px rgba(0,0,0,0.1);
+}
+
+/* Footer styling */
+.reusable-table tfoot td {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
 
 .filter-container {
     margin: 16px;
@@ -83,11 +195,35 @@
     margin-bottom: 20px;
 }
 
-
 /* Responsive styles */
+@media screen and (max-width: 1200px) {
+    .reusable-table-container {
+        overflow-x: auto;
+        position: relative;
+    }
+    
+    .reusable-table {
+        min-width: 900px; /* Ensures horizontal scrolling on smaller screens */
+    }
+    
+    /* Shadow indicator to show there's more content to scroll */
+    .reusable-table-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: 15px;
+        background: linear-gradient(to right, rgba(255,255,255,0), rgba(0,0,0,0.1));
+        pointer-events: none;
+        opacity: 0.7;
+    }
+}
+
 @media screen and (max-width: 768px) {
     .reusable-table {
         font-size: 12px;
+        min-width: 800px;
     }
 
     .reusable-table th,
@@ -99,6 +235,27 @@
         max-width: 40px;
         height: 40px;
     }
+    
+    /* Adjust column widths for smaller screens */
+    .reusable-table .col-xs {
+        min-width: 40px;
+    }
+    
+    .reusable-table .col-sm {
+        min-width: 60px;
+    }
+    
+    .reusable-table .col-md {
+        min-width: 80px;
+    }
+    
+    .reusable-table .col-lg {
+        min-width: 120px;
+    }
+    
+    .reusable-table .col-xl {
+        min-width: 160px;
+    }
 }
 
 @media screen and (max-width: 480px) {
@@ -109,6 +266,149 @@
     .reusable-table th,
     .reusable-table td {
         padding: 4px;
+    }
+    
+    /* More aggressive compression for very small screens */
+    .filter-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+/* Print-specific styles */
+@media print {
+    /* General print settings */
+    html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* Hide non-essential elements for printing */
+    .no-print, .no-print * {
+        display: none !important;
+    }
+    
+    /* Reset container properties for printing */
+    .reusable-table-container {
+        overflow: visible;
+        margin: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+    
+    .reusable-table {
+        /* Reset table to fit on paper */
+        width: 100%;
+        min-width: auto;
+        table-layout: auto;
+        font-size: 10pt;
+        border-collapse: collapse;
+        page-break-inside: auto;
+    }
+    
+    /* Adjust rows for pagination */
+    .reusable-table tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+    
+    /* Reset cell properties for printing */
+    .reusable-table th,
+    .reusable-table td {
+        position: static;
+        background-color: white !important;
+        color: black !important;
+        border: 1pt solid #000;
+        padding: 4pt;
+        font-size: 9pt;
+        page-break-inside: avoid;
+        word-break: break-word;
+        white-space: normal;
+        box-shadow: none !important;
+    }
+    
+    /* Proper header for each page */
+    .reusable-table thead {
+        display: table-header-group;
+    }
+    
+    .reusable-table thead th {
+        background-color: #f0f0f0 !important;
+        font-weight: bold;
+    }
+    
+    /* Proper footer for each page */
+    .reusable-table tfoot {
+        display: table-footer-group;
+    }
+    
+    /* Column size adjustments for print */
+    .reusable-table .col-xs,
+    .reusable-table .col-sm,
+    .reusable-table .col-md,
+    .reusable-table .col-lg,
+    .reusable-table .col-xl {
+        min-width: auto;
+        max-width: none;
+    }
+    
+    /* Relative sizing for print */
+    .reusable-table .col-xs {
+        width: 5%;
+    }
+    
+    .reusable-table .col-sm {
+        width: 10%;
+    }
+    
+    .reusable-table .col-md {
+        width: 15%;
+    }
+    
+    .reusable-table .col-lg {
+        width: 20%;
+    }
+    
+    .reusable-table .col-xl {
+        width: 25%;
+    }
+    
+    /* Adjust filter container for print */
+    .filter-container {
+        display: none;
+    }
+    
+    /* Ensure backgrounds print (if browser supports) */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    /* Keep report header visible */
+    .report-header {
+        position: static;
+        display: block;
+        text-align: center;
+        margin-bottom: 10pt;
+        page-break-after: avoid;
+    }
+    
+    /* Add page numbers */
+    @page {
+        size: A4 landscape;
+        margin: 0.5cm;
+    }
+    
+    /* Special handling for wide tables */
+    .reusable-table.wide-table {
+        font-size: 8pt;
+    }
+    
+    .reusable-table.wide-table th,
+    .reusable-table.wide-table td {
+        padding: 2pt;
     }
 }
 

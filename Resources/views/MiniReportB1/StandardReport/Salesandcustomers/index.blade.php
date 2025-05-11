@@ -1,7 +1,7 @@
 {{-- Sales and customers --}}
 @component('components.widget', ['class' => 'box-solid'])
     <div class="section-header" onclick="toggleSection('salesAndCustomersSection')">
-        <i class="fas fa-chevron-down"></i> Sales and customers
+        <i class="fas fa-chevron-down"></i> @lang('minireportb1::minireportb1.sales_and_customers')
     </div>
     <div class="row report-container" id="salesAndCustomersSection">
         <table class="table">
@@ -13,7 +13,7 @@
                     <div class="col-md-6 report-item" data-title="Sales Representative Report">
                         <div class="report-box">
                             <a href="{{ route('sr_getSalesRepresentativeReport') }}" class="report-link">
-                                <span>Sales Representative Report</span>
+                                <span>@lang('minireportb1::minireportb1.sales_representative_report')</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -86,6 +86,130 @@
                             </div>
                         </div>
                     </div>
+
+
+                    <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_customer_no_map') }}" class="report-link">
+                                <span>Customer Location Report – Unmapped Address</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_account_receivable_unpaid') }}" class="report-link">
+                                <span>Accounts Receivable - Unpaid</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_customer_pruchase') }}" class="report-link">
+                                <span>Customer Report - Purchase</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_customer_loan') }}" class="report-link">
+                                <span>Customer Report - Loan</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_vat_sale') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.vat_sales_report')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+                       <div class="col-md-6 report-item" data-title="Sell Payment Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_monthly_purchase_ledger') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.monthly_purchase_ledger')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Withholding Tax Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_withholding_tax_report') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.withholding_tax_report')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Office Rental Receipt">
+                        <div class="report-box">
+                            <a href="{{ route('sr_rental_invoice') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.rental_invoice')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Withholding Tax Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_expense_purchase_report') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.expense_purchase_report')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Withholding Tax Report">
+                        <div class="report-box">
+                            <a href="{{ route('sr_customer_report_via_staff') }}" class="report-link">
+                                <span>@lang('minireportb1::minireportb1.customer_report_via_staff')</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
 
                 </td>
                 <td style="width: 20%;">

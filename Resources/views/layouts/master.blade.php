@@ -150,6 +150,28 @@
         @endif
         <div>
             <div class="overlay tw-hidden"></div>
+
+            <!-- Add language switcher buttons at a convenient location in your master layout, perhaps in the header or sidebar -->
+            <div class="language-switcher" style="margin: 10px 0; padding: 10px; text-align: right;">
+                <a href="{{ route('MiniReportB1.language', ['locale' => 'en']) }}" class="btn btn-sm {{ App::getLocale() == 'en' ? 'btn-primary' : 'btn-outline-primary' }}" style="margin-right: 5px;" data-lang="en">
+                    English
+                </a>
+                <a href="{{ route('MiniReportB1.language', ['locale' => 'kh']) }}" class="btn btn-sm {{ App::getLocale() == 'kh' ? 'btn-primary' : 'btn-outline-primary' }}" data-lang="kh">
+                    ភាសាខ្មែរ
+                </a>
+            </div>
+            <script>
+            $(document).ready(function() {
+                // Handle language switcher clicks
+                $('.language-switcher a').on('click', function(e) {
+                    var selectedLang = $(this).data('lang');
+                    console.log('Switching language to: ' + selectedLang);
+                    localStorage.setItem('selected_language', selectedLang);
+                    sessionStorage.setItem('language_just_changed', 'true');
+                });
+            });
+            </script>
+        </div>
 </body>
 <style>
     @media print {

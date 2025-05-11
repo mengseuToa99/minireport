@@ -53,5 +53,11 @@
             class="tw-dw-btn tw-dw-btn-outline tw-dw-btn-xs tw-dw-btn-teal tw-m-0.5">
             <i class="fas fa-users"></i> expense
         </a>
+
+        <a href="{{ route('minireportb1.followupReport') }}"
+        class="tw-dw-btn tw-dw-btn-outline tw-dw-btn-xs tw-dw-btn-teal tw-m-0.5">
+        <i class="fas fa-users"></i> Follow Up
+    </a>
     </div>
 @endcomponent
+

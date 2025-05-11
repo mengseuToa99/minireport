@@ -169,10 +169,7 @@ class AdvanceTableController extends Controller
 
             // Add pagination
             $offset = ($page - 1) * $perPage;
-            $query .= " LIMIT {$perPage} OFFSET {$offset}";
-
-            Log::info('Executing Query:', ['query' => $query]);
-            $results = DB::select($query);
+            $query .= " LIMIT {$perPage} OFFSET {$offset}";            $results = DB::select($query);
 
             return response()->json([
                 'data' => $results,
@@ -183,13 +180,7 @@ class AdvanceTableController extends Controller
                     'last_page' => ceil($totalCount / $perPage)
                 ]
             ]);
-        } catch (\Exception $e) {
-            Log::error('Query Execution Error:', [
-                'error' => $e->getMessage(),
-                'query' => $query ?? 'Query not available',
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json(['error' => $e->getMessage()], 500);
+        } catch (\Exception $e) {            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 

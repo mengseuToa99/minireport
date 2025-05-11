@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Principal Enterprise Information Form</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif, 'Khmer OS', 'Khmer OS System';
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 80%;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .khmer-text {
+            font-family: 'Khmer OS', 'Khmer OS System', 'Arial Unicode MS', sans-serif;
+        }
+        
+        /* Filter Container */
+        .filter-container {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+        
+        /* Report Header */
+        .report-header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .report-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .form-number {
+            font-size: 16px;
+            float: right;
+            margin-top: -30px;
+        }
+        
+        /* Reusable Table */
+        .reusable-table-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        .reusable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .reusable-table th, 
+        .reusable-table td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .reusable-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        .reusable-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .reusable-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        /* Section Styles */
+        .section {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .section-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .form-label {
+            width: 40%;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .form-value {
+            width: 60%;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .checkbox-group input {
+            width: auto;
+            margin-right: 10px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        /* Print Styles */
+        @media print {
+            .no-print {
+                display: none;
+            }
+            
+            body {
+                background-color: #fff;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+        }
+        
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+            .form-label, 
+            .form-value {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <div class="form-number">ទម្រង់/ Form AP01-A</div>
+            <div class="report-title">Principal Enterprise Information</div>
+        </div>
+        
+        <div style="margin: 16px" class="no-print">
+            <div class="filter-container">
+                <div class="controls">
+                    <div class="form-group">
+                        <label for="image-input">Select an image:</label>
+                        <input type="file" id="image-input" accept="image/*">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pixelation-slider">Pixelation Level:</label>
+                        <input type="range" id="pixelation-slider" min="1" max="20" value="1">
+                        <span id="pixelation-value">1px</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="view-toggle">Toggle View:</label>
+                        <select id="view-toggle">
+                            <option value="table">Table View</option>
+                            <option value="image" selected>Image View</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="controls" style="margin-top: 15px;">
+                    <button id="print-btn" onclick="window.print()">Print</button>
+                    <button id="download-btn">Download HTML Table</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title khmer-text">
+                ២- ព័ត៌មានសហគ្រាសដើម / Principal Enterprise Information
+            </div>
+            
+            <div class="reusable-table-container">
+                <table class="reusable-table">
+                    <tbody>
+                        <tr>
+                            <td class="khmer-text">នាមករណ៍សហគ្រាស</td>
+                            <td>Name of the Enterprise</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ចុះបញ្ជីដៅ</td>
+                            <td>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="large_taxpayers">
+                                    <label for="large_taxpayers" class="khmer-text">នាយកដ្ឋានគ្ររប់គ្ររងអ្នកជាប់ពនធធំ</label>
+                                    <span style="margin-left: 10px;">Department of Large Taxpayers</span>
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="tax_branch">
+                                    <label for="tax_branch" class="khmer-text">សាខាពនធដ្ឋរ</label>
+                                    <span style="margin-left: 10px;">Tax branch</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សកមមភាពអាជីវកមម</td>
+                            <td>Business Activities</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខអ្តតសញ្ញាណកមមសារដពើពនធ</td>
+                            <td>Tax Identification Number (TIN)</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខកិចចសនារវាងភាន ក់ងារនិងសហគ្រាសដើម ចុះថ្ងៃទី</td>
+                            <td>Principal Agent Contract Nº Dated</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សារដអ្ឡិចគ្រតូនិក គ្របអ្ប់សំបុគ្រត/គ្របអ្ប់សំបុគ្រតដអ្ឡិកគ្រតូនិក</td>
+                            <td>Email P.O. Box/Electronic mailbox</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ទូរស័ពទចេ័ត ទូរស័ពទដេើត ទូរសារ</td>
+                            <td>Mobile Phone Office Telephone Fax</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title khmer-text">
+                ព័ត៌មានអំពីសហគ្រាសដើម / ADDITIONAL PRINCIPAL INFORMATION
+            </div>
+            
+            <div class="reusable-table-container">
+                <table class="reusable-table">
+                    <tbody>
+                        <tr>
+                            <td class="khmer-text">សម្រាប់មន្ត្រីព្ធដារ</td>
+                            <td>Tax official use only</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខអ្តតសញ្ញាណកមមសារដពើពនធ</td>
+                            <td>Tax Identification Number (TIN)</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដ្មុះសហគ្រាសជាភាន ក់ងារ</td>
+                            <td>Name of Agent Enterprise</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title khmer-text">
+                ៣- ព័ត៌មានសហគ្រាសដើម / Principal Enterprise Information
+            </div>
+            
+            <div class="reusable-table-container">
+                <table class="reusable-table">
+                    <tbody>
+                        <tr>
+                            <td class="khmer-text">នាមករណ៍សហគ្រាស</td>
+                            <td>Name of the Enterprise</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ចុះបញ្ជីដៅ</td>
+                            <td>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="large_taxpayers2">
+                                    <label for="large_taxpayers2" class="khmer-text">នាយកដ្ឋានគ្ររប់គ្ររងអ្នកជាប់ពនធធំ</label>
+                                    <span style="margin-left: 10px;">Department of Large Taxpayers</span>
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="tax_branch2">
+                                    <label for="tax_branch2" class="khmer-text">សាខាពនធដ្ឋរ</label>
+                                    <span style="margin-left: 10px;">Tax branch</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សកមមភាពអាជីវកមម</td>
+                            <td>Business Activities</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខអ្តតសញ្ញាណកមមសារដពើពនធ</td>
+                            <td>Tax Identification Number (TIN)</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខកិចចសនារវាងភាន ក់ងារនិងសហគ្រាសដើម ចុះថ្ងៃទី</td>
+                            <td>Principal Agent Contract Nº Dated</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សារដអ្ឡិចគ្រតូនិក គ្របអ្ប់សំបុគ្រត/គ្របអ្ប់សំបុគ្រតដអ្ឡិកគ្រតូនិក</td>
+                            <td>Email P.O. Box/Electronic mailbox</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ទូរស័ពទចេ័ត ទូរស័ពទដេើត ទូរសារ</td>
+                            <td>Mobile Phone Office Telephone Fax</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title khmer-text">
+                ៤- ព័ត៌មានសហគ្រាសដើម / Principal Enterprise Information
+            </div>
+            
+            <div class="reusable-table-container">
+                <table class="reusable-table">
+                    <tbody>
+                        <tr>
+                            <td class="khmer-text">នាមករណ៍សហគ្រាស</td>
+                            <td>Name of the Enterprise</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ចុះបញ្ជីដៅ</td>
+                            <td>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="large_taxpayers3">
+                                    <label for="large_taxpayers3" class="khmer-text">នាយកដ្ឋានគ្ររប់គ្ររងអ្នកជាប់ពនធធំ</label>
+                                    <span style="margin-left: 10px;">Department of Large Taxpayers</span>
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="tax_branch3">
+                                    <label for="tax_branch3" class="khmer-text">សាខាពនធដ្ឋរ</label>
+                                    <span style="margin-left: 10px;">Tax branch</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សកមមភាពអាជីវកមម</td>
+                            <td>Business Activities</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខអ្តតសញ្ញាណកមមសារដពើពនធ</td>
+                            <td>Tax Identification Number (TIN)</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ដេខកិចចសនារវាងភាន ក់ងារនិងសហគ្រាសដើម ចុះថ្ងៃទី</td>
+                            <td>Principal Agent Contract Nº Dated</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">សារដអ្ឡិចគ្រតូនិក គ្របអ្ប់សំបុគ្រត/គ្របអ្ប់សំបុគ្រតដអ្ឡិកគ្រតូនិក</td>
+                            <td>Email P.O. Box/Electronic mailbox</td>
+                        </tr>
+                        <tr>
+                            <td class="khmer-text">ទូរស័ពទចេ័ត ទូរស័ពទដេើត ទូរសារ</td>
+                            <td>Mobile Phone Office Telephone Fax</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Image processing area (hidden by default in print) -->
+        <div class="display-area no-print">
+            <div class="image-container" id="image-view">
+                <img id="original-image" alt="Original Image">
+                <div class="loading" id="loading-indicator" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Processing image...</p>
+                </div>
+            </div>
+            
+            <div class="table-container" id="table-view" style="display: none;">
+                <table id="pixel-table"></table>
+            </div>
+            
+            <div class="color-info" id="color-tooltip"></div>
+        </div>
+    </div>
+    
+    <script>
+        // DOM elements
+        const imageInput = document.getElementById('image-input');
+        const originalImage = document.getElementById('original-image');
+        const pixelTable = document.getElementById('pixel-table');
+        const pixelationSlider = document.getElementById('pixelation-slider');
+        const pixelationValue = document.getElementById('pixelation-value');
+        const viewToggle = document.getElementById('view-toggle');
+        const imageView = document.getElementById('image-view');
+        const tableView = document.getElementById('table-view');
+        const colorTooltip = document.getElementById('color-tooltip');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const downloadBtn = document.getElementById('download-btn');
+        
+        // Global variables
+        let imageData = null;
+        let imageWidth = 0;
+        let imageHeight = 0;
+        let currentBlockSize = 1;
+        
+        // Event listeners
+        imageInput.addEventListener('change', handleImageUpload);
+        pixelationSlider.addEventListener('input', updatePixelationValue);
+        pixelationSlider.addEventListener('change', updatePixelation);
+        viewToggle.addEventListener('change', toggleView);
+        downloadBtn.addEventListener('click', downloadTableHTML);
+        
+        // Drag and drop functionality
+        document.addEventListener('DOMContentLoaded', setupDragAndDrop);
+        
+        // Functions
+        function setupDragAndDrop() {
+            const dropZone = document.querySelector('.container');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropZone.classList.add('highlight');
+            }
+            
+            function unhighlight() {
+                dropZone.classList.remove('highlight');
+            }
+            
+            dropZone.addEventListener('drop', handleDrop, false);
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length) {
+                    imageInput.files = files;
+                    handleImageUpload();
+                }
+            }
+        }
+        
+        function handleImageUpload() {
+            if (!imageInput.files || !imageInput.files[0]) return;
+            
+            const file = imageInput.files[0];
+            
+            // Validate file is an image
+            if (!file.type.match('image.*')) {
+                alert('Please select an image file (jpg, png, gif, etc.)');
+                return;
+            }
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // Load and process the image
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                originalImage.src = e.target.result;
+                originalImage.onload = function() {
+                    imageWidth = originalImage.naturalWidth;
+                    imageHeight = originalImage.naturalHeight;
+                    
+                    // Check if image is too large
+                    if (imageWidth > 1000 || imageHeight > 1000) {
+                        if (!confirm(`This image is large (${imageWidth}×${imageHeight} pixels) and may cause performance issues. Continue anyway?`)) {
+                            loadingIndicator.style.display = 'none';
+                            return;
+                        }
+                    }
+                    
+                    // Process the image
+                    processImage();
+                };
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        function processImage() {
+            // Create a canvas to read pixel data
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = imageWidth;
+            canvas.height = imageHeight;
+            
+            ctx.drawImage(originalImage, 0, 0);
+            
+            try {
+                // Get image data (pixel information)
+                imageData = ctx.getImageData(0, 0, imageWidth, imageHeight).data;
+                
+                // Update pixelation with current block size
+                updatePixelation();
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+                
+                // Show table view if selected
+                toggleView();
+            } catch (error) {
+                alert('Error processing image: ' + error.message);
+                loadingIndicator.style.display = 'none';
+            }
+        }
+        
+        function updatePixelationValue() {
+            currentBlockSize = parseInt(pixelationSlider.value);
+            pixelationValue.textContent = `${currentBlockSize}px`;
+        }
+        
+        function updatePixelation() {
+            if (!imageData) return;
+            
+            updatePixelationValue();
+            
+            // Show loading for large images
+            if (imageWidth > 500 || imageHeight > 500) {
+                loadingIndicator.style.display = 'block';
+                // Use setTimeout to allow the UI to update before heavy processing
+                setTimeout(createPixelTable, 50);
+            } else {
+                createPixelTable();
+            }
+        }
+        
+        function createPixelTable() {
+            // Clear existing table
+            pixelTable.innerHTML = '';
+            
+            const blockSize = currentBlockSize;
+            const tableWidth = Math.ceil(imageWidth / blockSize);
+            const tableHeight = Math.ceil(imageHeight / blockSize);
+            
+            // Create the pixel table
+            for (let y = 0; y < tableHeight; y++) {
+                const row = document.createElement('tr');
+                
+                for (let x = 0; x < tableWidth; x++) {
+                    const cell = document.createElement('td');
+                    
+                    // Calculate average color for the current block
+                    const color = getAverageColor(x * blockSize, y * blockSize, blockSize);
+                    
+                    // Set cell properties
+                    cell.style.backgroundColor = color;
+                    cell.style.width = '1px';
+                    cell.style.height = '1px';
+                    
+                    // Store color data for tooltip
+                    cell.dataset.color = color;
+                    
+                    // Add event listeners for color tooltip
+                    cell.addEventListener('mouseover', showColorTooltip);
+                    cell.addEventListener('mousemove', moveColorTooltip);
+                    cell.addEventListener('mouseout', hideColorTooltip);
+                    
+                    row.appendChild(cell);
+                }
+                
+                pixelTable.appendChild(row);
+            }
+            
+            // Hide loading indicator
+            loadingIndicator.style.display = 'none';
+        }
+        
+        function getAverageColor(startX, startY, blockSize) {
+            let r = 0, g = 0, b = 0, a = 0;
+            let pixelCount = 0;
+            
+            // Calculate boundaries to prevent going out of bounds
+            const endX = Math.min(startX + blockSize, imageWidth);
+            const endY = Math.min(startY + blockSize, imageHeight);
+            
+            // Sum up all pixel values in the block
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    const i = (y * imageWidth + x) * 4;
+                    
+                    r += imageData[i];
+                    g += imageData[i + 1];
+                    b += imageData[i + 2];
+                    a += imageData[i + 3];
+                    
+                    pixelCount++;
+                }
+            }
+            
+            // Calculate average
+            if (pixelCount > 0) {
+                r = Math.round(r / pixelCount);
+                g = Math.round(g / pixelCount);
+                b = Math.round(b / pixelCount);
+                a = Math.round(a / pixelCount) / 255; // Convert to 0-1 range
+            }
+            
+            // Return color as hex or rgba
+            if (a < 1) {
+                return `rgba(${r}, ${g}, ${b}, ${a.toFixed(2)})`;
+            } else {
+                return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            }
+        }
+        
+        function showColorTooltip(e) {
+            const color = e.target.dataset.color;
+            colorTooltip.textContent = color;
+            colorTooltip.style.display = 'block';
+            moveColorTooltip(e);
+        }
+        
+        function moveColorTooltip(e) {
+            colorTooltip.style.left = (e.pageX + 10) + 'px';
+            colorTooltip.style.top = (e.pageY + 10) + 'px';
+        }
+        
+        function hideColorTooltip() {
+            colorTooltip.style.display = 'none';
+        }
+        
+        function toggleView() {
+            const selectedView = viewToggle.value;
+            
+            if (selectedView === 'image') {
+                imageView.style.display = 'block';
+                tableView.style.display = 'none';
+            } else {
+                imageView.style.display = 'none';
+                tableView.style.display = 'block';
+            }
+        }
+        
+        function downloadTableHTML() {
+            if (!imageData) {
+                alert('Please upload an image first');
+                return;
+            }
+            
+            // Create a simplified version of the table for download
+            const tableHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixelated Image</title>
+    <style>
+        body { margin: 0; padding: 0; }
+        table { border-collapse: collapse; }
+        td { padding: 0; margin: 0; line-height: 0; width: 1px; height: 1px; }
+    </style>
+</head>
+<body>
+    <table>
+        ${pixelTable.innerHTML}
+    </table>
+</body>
+</html>
+            `;
+            
+            // Create download link
+            const blob = new Blob([tableHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            a.href = url;
+            a.download = 'pixelated_image.html';
+            document.body.appendChild(a);
+            a.click();
+            
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
+    </script>
+</body>
+</html> 

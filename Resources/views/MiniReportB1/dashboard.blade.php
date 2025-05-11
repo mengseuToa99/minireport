@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', __('minireportb1::lang.MiniReportB1'))
+@section('title', __('minireportb1::minireportb1.MiniReportB1'))
 @section('content')
     <link rel="stylesheet" href="{{ asset('modules/minireportb1/css/module.css') }}">
 
@@ -7,20 +7,19 @@
     <!-- Main content -->
     <section class="content no-print">
         <div class="row" style="height: 200px; weight: auto;">
-        <div class="tw-flex tw-items-center tw-gap-4" style="margin-top: 60px; margin-left: 60px;">
-            
-          
-            <img src="{{ asset($business_logo) }}" alt="{{ e($business_name) }} Logo"
-                class="img img-thumbnail img-logo tw-flex-shrink-0 w-16 h-16 rounded-lg shadow-sm" loading="lazy">
-          
-        
-            <a href="{{ route('home') }}" class="tw-flex-1 tw-min-w-0">
-                <p class="tw-font-medium tw-text-black tw-font-bold tw-truncate" style="font-size: 26px;">
-                    {{ $business_name }}
-                </p>
-            </a>
-        </div>
+            <div class="tw-flex tw-items-center tw-gap-4" style="margin-top: 60px; margin-left: 60px;">
 
+
+                <img src="{{ asset($business_logo) }}" alt="{{ e($business_name) }} Logo"
+                    class="img img-thumbnail img-logo tw-flex-shrink-0 w-16 h-16 rounded-lg shadow-sm" loading="lazy">
+
+
+                <a href="{{ route('home') }}" class="tw-flex-1 tw-min-w-0">
+                    <p class="tw-font-medium tw-text-black tw-font-bold tw-truncate" style="font-size: 26px;">
+                        {{ $business_name }}
+                    </p>
+                </a>
+            </div>
 
         </div>
 
@@ -37,30 +36,41 @@
                 <a class="nav-link" id="layout-tab" data-toggle="tab" href="#layout" role="tab" aria-controls="layout"
                     aria-selected="false">Header Report</a>
             </li>
+
+             <li class="nav-item">
+                <a class="nav-link" id="tax-tab" data-toggle="tab" href="#tax" role="tab" aria-controls="tax"
+                    aria-selected="false">Tax-Gov</a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" id="mony-tab" data-toggle="tab" href="#mony" role="tab" aria-controls="mony"
+                    aria-selected="false">Mony</a>
+            </li>
+
+    
+
         </ul>
         <div class="tab-content">
+           
+
             <div class="tab-pane fade show active" id="standard" role="tabpanel" aria-labelledby="standard-tab">
-                @include('minireportb1::MiniReportB1.StandardReport.index')
+
+                    @include('minireportb1::MiniReportB1.StandardReport.index')      
             </div>
+
+
 
             <div class="tab-pane fade" id="custom" role="tabpanel" aria-labelledby="custom-tab">
 
                 <div class="report-containered">
-                    <select class="filter-select " name="date_filter" onchange="navigateToReport(this.value)">
-                        <option value="">Report</option>
-                        <option value="payroll">Payroll</option>
-                        <option value="saleReport">Sale</option>
-                        <option value="purchaseReport">Purchase</option>
-                        <option value="productReport">Product</option>
-                        <option value="stockReport">Stock</option>
-                        <option value="payroll1">Pay Components</option>
-                        <option value="payroll2">Payroll Groups</option>
-                        <option value="expenseReport">Expense</option>
-                    </select>
+                    
 
                     <button class="btn" onclick="showCreateFolderModal()">
                         create folder
                     </button>
+
+                    <button class="btn" id="createFileButton">create report</button>
+
                 </div>
 
 
@@ -142,8 +152,17 @@
 
             </div>
 
-            <div class="tab-pane fade" id="layout" role="tabpanel" aria-labelledby="layout-tab">
+             {{--  --}}
+              <div class="tab-pane fade" id="layout" role="tabpanel" aria-labelledby="layout-tab">
                 @include('minireportb1::MiniReportB1.components.layout')
+            </div>
+
+            <div class="tab-pane fade" id="tax" role="tabpanel" aria-labelledby="tax-tab">
+                    @include('minireportb1::MiniReportB1.gov_tax.index')
+            </div>
+
+            <div class="tab-pane fade" id="mony" role="tabpanel" aria-labelledby="mony-tab">
+                    @include('minireportb1::MiniReportB1.mony.index')
             </div>
         </div>
     </section>
@@ -316,10 +335,25 @@
 
                 // Show the selected tab pane
                 $(targetId).addClass('show active');
+                
+                // Store the active tab ID in localStorage
+                localStorage.setItem('activeTab', $(this).attr('id'));
             });
 
-            // Show the first tab by default
-            $('#reportTabs a[href="#standard"]').tab('show');
+            // Check if there's a stored active tab
+            var activeTab = localStorage.getItem('activeTab');
+            if (activeTab) {
+                // Activate the stored tab
+                $('#' + activeTab).tab('show');
+                
+                // Show the corresponding tab content
+                var targetId = $('#' + activeTab).attr('href');
+                $('.tab-pane').removeClass('show active');
+                $(targetId).addClass('show active');
+            } else {
+                // Show the first tab by default
+                $('#reportTabs a[href="#standard"]').tab('show');
+            }
         });
 
 
@@ -803,6 +837,47 @@
                 }
             }
         }
+    </script>
+
+    <script>
+        $(document).ready(function() {
+            function navigateToPage(url) {
+                window.location.href = url;
+            }
+
+            $('#createFileButton').on('click', function() {
+                navigateToPage('{{ route('minireport_createfile') }}'); // Using Laravel route
+            });
+        });
+    </script>
+
+    <!-- Tab navigation handler -->
+    <script>
+        // Handle tab activation based on URL hash
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if the URL has a hash
+            if (window.location.hash) {
+                const hash = window.location.hash.substring(1); // Remove the # character
+                const tabId = hash + '-tab'; // Add the -tab suffix used in the HTML
+                
+                // Find the tab element
+                const tabElement = document.getElementById(tabId);
+                
+                if (tabElement) {
+                    // Activate the tab
+                    setTimeout(function() {
+                        $(tabElement).tab('show');
+                        console.log('Activated tab:', tabId);
+                    }, 200);
+                }
+            }
+            
+            // Update hash when tabs are clicked
+            $('.nav-tabs a').on('shown.bs.tab', function(e) {
+                const id = e.target.id.replace('-tab', '');
+                history.replaceState(null, null, '#' + id);
+            });
+        });
     </script>
 
     <style>

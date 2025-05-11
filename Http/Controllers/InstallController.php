@@ -104,7 +104,6 @@ class InstallController extends Controller
                 ->with('status', $output);
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::emergency('File:' . $e->getFile() . ' Line:' . $e->getLine() . ' Message:' . $e->getMessage());
 
             $output = [
                 'success' => false,
@@ -118,6 +117,14 @@ class InstallController extends Controller
     public function install()
     {
         try {
+
+            if (Schema::hasTable('p101_tax_form_items')) {
+                Schema::dropIfExists('p101_tax_form_items');
+            }
+            
+            if (Schema::hasTable('p101_tax_forms')) {
+                Schema::dropIfExists('p101_tax_forms');
+            }
             // Optionally set the database engine, if needed (usually not necessary as InnoDB is default)
             DB::statement('SET default_storage_engine=INNODB;');
             // Always run migrations to ensure tables are up to date
@@ -134,10 +141,6 @@ class InstallController extends Controller
 
             $output = ['success' => 1, 'msg' => 'MiniReportB1 module installed successfully'];
         } catch (\Exception $e) {
-            \Log::emergency('Installation failed: ' . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
 
             $output = ['success' => false, 'msg' => $e->getMessage()];
         }

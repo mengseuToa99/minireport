@@ -1,8 +1,6 @@
 @extends('minireportb1::layouts.master2')
 @section('title', 'Promotion Products')
 @section('css')
- {{-- style for table --}}
- <link rel="stylesheet" href="{{ asset('modules/minireportb1/css/reusable-table.css') }}">
     <style>
         /* General styles */
         body,
@@ -10,7 +8,10 @@
         .content-section,
         .filter-form,
         .table-responsive,
-        {
+        .report-header,
+        .product-table,
+        .product-table th,
+        .product-table td {
             background-color: white !important;
         }
 
@@ -178,7 +179,7 @@
             <!-- Header Section -->
             <div class="no-print">
                 @component('components.filters', ['title' => __('report.filters'), 'class' => 'no-print'])
-                <form method="GET" action="{{ route('mini_promotion_product_all') }}" class="filter-form">
+                    <form method="GET" action="{{ route('sr_promotion_product_all') }}" class="filter-form">
                         <div class="row">
                             <!-- Month Filter -->
                             <div class="col-md-3">
@@ -326,8 +327,8 @@
                 </div>
 
                 <!-- Products Table -->
-                <div class="reusable-table-container" id="promotionProductsAllTable">
-                    <table class="reusable-table">
+                <div class="table-responsive">
+                    <table class="product-table">
                         <thead class="thead-dark">
                             <tr>
                                 <th class="col-no">#</th>
@@ -407,7 +408,12 @@
 @section('javascript')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-        
+            // Print functionality
+            document.getElementById('printButton').addEventListener('click', function() {
+                window.print();
+            });
+
+            // Date filter validation
             const filterForm = document.querySelector('.filter-form');
             filterForm.addEventListener('submit', function(e) {
                 const month = document.querySelector('[name="filter_month"]').value;
@@ -501,8 +507,5 @@
                 $('#groupPriceColumnsModal').modal('hide');
             });
         });
-
-        const tablename = "#promotionProductsAllTable";
     </script>
-    <script src="{{ asset('modules/minireportb1/js/print.js') }}"></script>
 @endsection

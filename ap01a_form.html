@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AP01-A Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif, 'Khmer OS', 'Khmer OS System';
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .form-number {
+            border: 1px solid #000;
+            padding: 8px 15px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        
+        .reset-button {
+            background-color: #ddd;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .reset-button:hover {
+            background-color: #ccc;
+        }
+        
+        .section {
+            border: 1px solid #000;
+            margin-bottom: 15px;
+            padding: 10px;
+        }
+        
+        .section-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+        }
+        
+        .section-number {
+            margin-right: 10px;
+        }
+        
+        .khmer-text {
+            font-family: 'Khmer OS', 'Khmer OS System', 'Arial Unicode MS', sans-serif;
+        }
+        
+        .section-title {
+            margin-bottom: 10px;
+        }
+        
+        .form-row {
+            display: flex;
+            margin-bottom: 5px;
+        }
+        
+        .form-label {
+            width: 30%;
+            font-weight: normal;
+        }
+        
+        .form-field {
+            width: 70%;
+        }
+        
+        input[type="text"], input[type="email"], input[type="tel"] {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #aaa;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+        
+        .checkbox-container input {
+            margin-right: 5px;
+        }
+        
+        .tin-container {
+            display: flex;
+        }
+        
+        .tin-box {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            margin-right: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0ff;
+        }
+        
+        .date-box {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            margin-right: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0ff;
+        }
+        
+        .date-separator {
+            margin: 0 10px;
+        }
+        
+        .official-box {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .official-title {
+            text-align: right;
+            margin-bottom: 10px;
+        }
+        
+        @media print {
+            body {
+                background-color: white;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+            
+            .reset-button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-header">
+            <div class="form-number">ទម្រង់ / Form AP01-A</div>
+            <button class="reset-button" onclick="resetForm()">Reset Your Form</button>
+        </div>
+        
+        <div class="official-box">
+            <div class="official-title khmer-text">
+                សម្រាប់មន្ត្រីព្ធដារ/Tax official use only
+            </div>
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខអត្តសញ្ញាណកម្មសារពើពន្ធ</div>
+                <div class="form-field">
+                    <div class="tin-container">
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                    </div>
+                    <div>Tax Identification Number (TIN)</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-label khmer-text">ឈ្មោះសហគ្រាសជាភាន័ក់ងារ</div>
+                <div class="form-field">
+                    <input type="text" id="agent_enterprise">
+                    <div>Name of Agent Enterprise</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <div class="section-number">២-</div>
+                <div class="section-title khmer-text">ព័ត៌មានសហគ្រាសដើម Principal Enterprise Information</div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">នាមករណ៍សហគ្រាស</div>
+                <div class="form-field">
+                    <input type="text" id="enterprise_name">
+                    <div>Name of the Enterprise</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ចុះបញ្ជីនៅ</div>
+                <div class="form-field">
+                    <div style="display: flex; margin-bottom: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="large_taxpayers">
+                            <label for="large_taxpayers" class="khmer-text">នាយកដ្ឋានគ្រប់គ្រងអ្នកជាប់ពន្ធធំ</label>
+                        </div>
+                    </div>
+                    <div>Department of Large Taxpayers</div>
+                    
+                    <div style="display: flex; margin-top: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="tax_branch">
+                            <label for="tax_branch" class="khmer-text">សាខាពន្ធដារ</label>
+                        </div>
+                    </div>
+                    <div>Tax branch</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សកម្មភាពអាជីវកម្ម</div>
+                <div class="form-field">
+                    <input type="text" id="business_activities">
+                    <div>Business Activities</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខអត្តសញ្ញាណកម្មសារពើពន្ធ</div>
+                <div class="form-field">
+                    <div class="tin-container">
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div>-</div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                    </div>
+                    <div>Tax Identification Number (TIN)</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខកិច្ចសន្យារវាងភាគីភ្នាក់ងារនិងសហគ្រាសដើម</div>
+                <div class="form-field" style="display: flex; justify-content: space-between;">
+                    <div style="width: 65%;">
+                        <input type="text" id="contract_number">
+                        <div>Principal Agent Contract Nº</div>
+                    </div>
+                    <div style="width: 30%;">
+                        <div class="khmer-text">ចុះថ្ងៃទី</div>
+                        <div class="tin-container">
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                        </div>
+                        <div>Dated</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សារអេឡិចត្រូនិក</div>
+                <div class="form-field">
+                    <input type="email" id="email">
+                    <div>Email</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ប្រអប់សំបុត្រ/ប្រអប់សំបុត្រអេឡិកត្រូនិក</div>
+                <div class="form-field">
+                    <input type="text" id="po_box">
+                    <div>P.O. Box/Electronic mailbox</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទចល័ត</div>
+                <div class="form-field">
+                    <input type="tel" id="mobile_phone">
+                    <div>Mobile Phone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទលើតុ</div>
+                <div class="form-field">
+                    <input type="tel" id="office_phone">
+                    <div>Office Telephone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរសារ</div>
+                <div class="form-field">
+                    <input type="tel" id="fax">
+                    <div>Fax</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <div class="section-number">៣-</div>
+                <div class="section-title khmer-text">ព័ត៌មានសហគ្រាសដើម Principal Enterprise Information</div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">នាមករណ៍សហគ្រាស</div>
+                <div class="form-field">
+                    <input type="text" id="enterprise_name2">
+                    <div>Name of the Enterprise</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ចុះបញ្ជីនៅ</div>
+                <div class="form-field">
+                    <div style="display: flex; margin-bottom: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="large_taxpayers2">
+                            <label for="large_taxpayers2" class="khmer-text">នាយកដ្ឋានគ្រប់គ្រងអ្នកជាប់ពន្ធធំ</label>
+                        </div>
+                    </div>
+                    <div>Department of Large Taxpayers</div>
+                    
+                    <div style="display: flex; margin-top: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="tax_branch2">
+                            <label for="tax_branch2" class="khmer-text">សាខាពន្ធដារ</label>
+                        </div>
+                    </div>
+                    <div>Tax branch</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សកម្មភាពអាជីវកម្ម</div>
+                <div class="form-field">
+                    <input type="text" id="business_activities2">
+                    <div>Business Activities</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខអត្តសញ្ញាណកម្មសារពើពន្ធ</div>
+                <div class="form-field">
+                    <div class="tin-container">
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div>-</div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                    </div>
+                    <div>Tax Identification Number (TIN)</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខកិច្ចសន្យារវាងភាគីភ្នាក់ងារនិងសហគ្រាសដើម</div>
+                <div class="form-field" style="display: flex; justify-content: space-between;">
+                    <div style="width: 65%;">
+                        <input type="text" id="contract_number2">
+                        <div>Principal Agent Contract Nº</div>
+                    </div>
+                    <div style="width: 30%;">
+                        <div class="khmer-text">ចុះថ្ងៃទី</div>
+                        <div class="tin-container">
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                        </div>
+                        <div>Dated</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សារអេឡិចត្រូនិក</div>
+                <div class="form-field">
+                    <input type="email" id="email2">
+                    <div>Email</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ប្រអប់សំបុត្រ/ប្រអប់សំបុត្រអេឡិកត្រូនិក</div>
+                <div class="form-field">
+                    <input type="text" id="po_box2">
+                    <div>P.O. Box/Electronic mailbox</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទចល័ត</div>
+                <div class="form-field">
+                    <input type="tel" id="mobile_phone2">
+                    <div>Mobile Phone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទលើតុ</div>
+                <div class="form-field">
+                    <input type="tel" id="office_phone2">
+                    <div>Office Telephone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរសារ</div>
+                <div class="form-field">
+                    <input type="tel" id="fax2">
+                    <div>Fax</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <div class="section-number">៤-</div>
+                <div class="section-title khmer-text">ព័ត៌មានសហគ្រាសដើម Principal Enterprise Information</div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">នាមករណ៍សហគ្រាស</div>
+                <div class="form-field">
+                    <input type="text" id="enterprise_name3">
+                    <div>Name of the Enterprise</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ចុះបញ្ជីនៅ</div>
+                <div class="form-field">
+                    <div style="display: flex; margin-bottom: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="large_taxpayers3">
+                            <label for="large_taxpayers3" class="khmer-text">នាយកដ្ឋានគ្រប់គ្រងអ្នកជាប់ពន្ធធំ</label>
+                        </div>
+                    </div>
+                    <div>Department of Large Taxpayers</div>
+                    
+                    <div style="display: flex; margin-top: 10px;">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="tax_branch3">
+                            <label for="tax_branch3" class="khmer-text">សាខាពន្ធដារ</label>
+                        </div>
+                    </div>
+                    <div>Tax branch</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សកម្មភាពអាជីវកម្ម</div>
+                <div class="form-field">
+                    <input type="text" id="business_activities3">
+                    <div>Business Activities</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខអត្តសញ្ញាណកម្មសារពើពន្ធ</div>
+                <div class="form-field">
+                    <div class="tin-container">
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div>-</div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                        <div class="tin-box"></div>
+                    </div>
+                    <div>Tax Identification Number (TIN)</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">លេខកិច្ចសន្យារវាងភាគីភ្នាក់ងារនិងសហគ្រាសដើម</div>
+                <div class="form-field" style="display: flex; justify-content: space-between;">
+                    <div style="width: 65%;">
+                        <input type="text" id="contract_number3">
+                        <div>Principal Agent Contract Nº</div>
+                    </div>
+                    <div style="width: 30%;">
+                        <div class="khmer-text">ចុះថ្ងៃទី</div>
+                        <div class="tin-container">
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-separator">/</div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                            <div class="date-box"></div>
+                        </div>
+                        <div>Dated</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">សារអេឡិចត្រូនិក</div>
+                <div class="form-field">
+                    <input type="email" id="email3">
+                    <div>Email</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ប្រអប់សំបុត្រ/ប្រអប់សំបុត្រអេឡិកត្រូនិក</div>
+                <div class="form-field">
+                    <input type="text" id="po_box3">
+                    <div>P.O. Box/Electronic mailbox</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទចល័ត</div>
+                <div class="form-field">
+                    <input type="tel" id="mobile_phone3">
+                    <div>Mobile Phone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរស័ព្ទលើតុ</div>
+                <div class="form-field">
+                    <input type="tel" id="office_phone3">
+                    <div>Office Telephone</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-label khmer-text">ទូរសារ</div>
+                <div class="form-field">
+                    <input type="tel" id="fax3">
+                    <div>Fax</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function resetForm() {
+            document.getElementById('enterpriseForm').reset();
+            // Reset all input boxes
+            var inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
+            inputs.forEach(function(input) {
+                input.value = '';
+            });
+            
+            // Reset all checkboxes
+            var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.checked = false;
+            });
+        }
+    </script>
+</body>
+</html> 

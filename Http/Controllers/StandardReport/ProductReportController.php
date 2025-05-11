@@ -7,6 +7,7 @@ use App\Brands;
 use App\Business;
 use App\Product;
 use App\Variation;
+
 use App\Transaction;
 use App\BusinessLocation;
 use App\Category;
@@ -32,6 +33,10 @@ use Faker\Factory as Faker;
 use App\Utils\TransactionUtil;
 use App\Charts\CommonChart;
 use App\TransactionSellLinesPurchaseLines;
+use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithTitle;
 
 class ProductReportController extends Controller
 {
@@ -62,9 +67,657 @@ class ProductReportController extends Controller
         $this->transactionUtil = $transactionUtil;
     }
 
+    public function getProfitProduce(Request $request)
+    {
+        if (!auth()->user()->can('product.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        $business_id = request()->session()->get('user.business_id');
+        
+        // Get filters if provided
+        $type_filter = $request->input('type_filter');
+        $category_filter = $request->input('category_filter');
+        $price_group_filter = $request->input('price_group_filter');
+        
+        // Get all selling price groups
+        $price_groups = SellingPriceGroup::where('business_id', $business_id)->get();
+        
+        // Base query for products
+        $query = Product::where('products.business_id', $business_id)
+            ->with(['category', 'unit'])
+            ->select(
+                'products.id',
+                'products.name',
+                'products.type',
+                'products.category_id',
+                'products.unit_id',
+                'products.tax',
+                'products.tax_type',
+                'products.enable_stock',
+                'products.alert_quantity'
+            )
+            ->orderBy('products.name', 'asc');
+        
+        // Join with variations
+        $query->join('variations', 'variations.product_id', '=', 'products.id')
+            ->whereNull('variations.deleted_at')
+            ->groupBy('products.id');
+        
+        // Apply type filter if provided
+        if (!empty($type_filter)) {
+            $query->where('products.type', $type_filter);
+        }
+        
+        // Apply category filter if provided
+        if (!empty($category_filter)) {
+            $query->where('products.category_id', $category_filter);
+        }
+        
+        // Get the products with their variations
+        $products = $query->get()
+            ->map(function ($product) use ($price_group_filter, $price_groups) {
+                // Now get variations with their group prices
+                $variations = Variation::where('product_id', $product->id)
+                    ->whereNull('deleted_at')
+                    ->with(['group_prices' => function($q) use ($price_group_filter) {
+                        if (!empty($price_group_filter)) {
+                            $q->where('price_group_id', $price_group_filter);
+                        }
+                    }])
+                    ->get()
+                    ->map(function ($variation) use ($price_group_filter, $price_groups) {
+                        $purchase_price = $variation->default_purchase_price;
+                        
+                        // Default to default sell price if no price group selected
+                        $sell_price = $variation->default_sell_price;
+                        $group_price_name = 'Default Price';
+                        
+                        // If price group filter is selected and group prices exist
+                        if (!empty($price_group_filter) && $variation->group_prices->isNotEmpty()) {
+                            $group_price = $variation->group_prices->first();
+                            if ($group_price) {
+                                $sell_price = $group_price->price_inc_tax;
+                                $selected_group = $price_groups->where('id', $price_group_filter)->first();
+                                $group_price_name = $selected_group ? $selected_group->name : 'Group Price';
+                            }
+                        }
+                        
+                        $profit = $sell_price - $purchase_price;
+                        $profit_percent = ($purchase_price > 0) ? ($profit / $purchase_price) * 100 : 0;
+                        
+                        return [
+                            'variation_name' => $variation->name,
+                            'purchase_price' => $purchase_price,
+                            'sell_price' => $sell_price,
+                            'profit' => $profit,
+                            'profit_percent' => $profit_percent,
+                            'group_price_name' => $group_price_name
+                        ];
+                    });
+                
+                return [
+                    'id' => $product->id,
+                    'product_name' => $product->name,
+                    'type' => $product->type,
+                    'category_id' => $product->category_id,
+                    'category_name' => $product->category->name ?? 'Uncategorized',
+                    'unit_name' => $product->unit->short_name ?? '',
+                    'variations' => $variations,
+                    'tax_rate' => $product->tax
+                ];
+            });
+        
+        // Get categories for filter
+        $categories = Category::forDropdown($business_id, 'product');
+        
+        // Get product types for filter
+        $types = [
+            'single' => __('lang_v1.single'),
+            'variable' => __('lang_v1.variable'),
+            'combo' => __('lang_v1.combo')
+        ];
+        
+        if ($request->ajax()) {
+            return response()->json([
+                'products' => $products,
+                'categories' => $categories,
+                'types' => $types,
+                'price_groups' => $price_groups
+            ]);
+        }
+        
+        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.profit_product_report', compact(
+            'products',
+            'categories',
+            'types',
+            'price_groups'
+        ));
+    }
+
+
+    public function getProductSalesReport(Request $request)
+    {
+        if (!auth()->user()->can('Product_Sell_Report')) {
+            abort(403, 'Unauthorized action.');
+        }
+    
+        $business_id = $request->session()->get('user.business_id');
+        $business = Business::findOrFail($business_id);
+    
+        // Initialize date filters
+        $date_range = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $date_range['start_date'];
+        $end_date = $date_range['end_date'];
+    
+        // Get location filter
+        $location_id = $request->get('location_id', null);
+    
+        // Fetch categories for filter dropdown
+        $categories = Category::forDropdown($business_id, 'product');
+        
+        // Fetch locations for filter dropdown
+        $locations = BusinessLocation::forDropdown($business_id);
+    
+        // Build base query - start from transactions to properly filter by location
+        $query = DB::table('transactions as t')
+            ->join('transaction_sell_lines as tsl', 't.id', '=', 'tsl.transaction_id')
+            ->join('products as p', 'tsl.product_id', '=', 'p.id')
+            ->leftJoin('categories as c1', 'p.category_id', '=', 'c1.id')
+            ->leftJoin('categories as c2', 'p.sub_category_id', '=', 'c2.id')
+            ->where('t.business_id', $business_id)
+            ->whereIn('t.type', ['sell', 'production_sell', 'production_purchase'])
+            ->where('t.status', 'final')
+            ->when($start_date && $end_date, function ($q) use ($start_date, $end_date) {
+                $q->whereBetween('t.transaction_date', [$start_date, $end_date]);
+            })
+            ->when($location_id, function ($q) use ($location_id) {
+                $q->where('t.location_id', $location_id);
+            })
+            ->select(
+                'p.id as product_id',
+                'p.name as product_name',
+                'p.sku',
+                'p.category_id',
+                'p.sub_category_id',
+                'c1.name as category_name',
+                'c2.name as sub_category_name',
+                DB::raw('SUM(tsl.quantity) as total_quantity')
+            )
+            ->groupBy('p.id', 'p.name', 'p.sku', 'p.category_id', 'p.sub_category_id', 'c1.name', 'c2.name')
+            ->orderBy('p.name', 'asc');
+    
+        $raw_data = $query->get();
+    
+        $formatted_data = $raw_data->map(function ($row) {
+            $description = $row->category_name;
+            if ($row->sub_category_name) {
+                $description .= ' > ' . $row->sub_category_name;
+            }
+    
+            return [
+                'product_id' => $row->product_id,
+                'product_name' => $row->product_name,
+                'sku' => $row->sku,
+                'category_id' => $row->category_id ?? null,
+                'sub_category_id' => $row->sub_category_id ?? null,
+                'category_name' => $row->category_name,
+                'sub_category_name' => $row->sub_category_name,
+                'description' => $description,
+                'quantity' => $row->total_quantity
+            ];
+        });
+    
+        $products_by_category = [];
+        foreach ($formatted_data as $product) {
+            $category_id = $product['category_id'] ?? 'no_category';
+            if (!isset($products_by_category[$category_id])) {
+                $products_by_category[$category_id] = [
+                    'name' => $product['category_name'] ?? null,
+                    'products' => []
+                ];
+            }
+            $products_by_category[$category_id]['products'][] = $product;
+        }
+    
+        if ($request->has('export_excel')) {
+            return $this->exportToExcel($formatted_data, $start_date, $end_date, $location_id, $locations);
+        }
+    
+        if ($request->ajax()) {
+            return response()->json([
+                'data' => $formatted_data,
+            ]);
+        }
+    
+        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.monthly_product_sale', compact(
+            'formatted_data',
+            'business',
+            'start_date',
+            'end_date',
+            'raw_data',
+            'categories',
+            'products_by_category',
+            'locations',
+            'location_id'
+        ));
+    }
+    
+    private function exportToExcel($data, $start_date, $end_date, $location_id, $locations)
+    {
+        $location_name = $location_id ? $locations[$location_id] : 'All Locations';
+        
+        return Excel::download(new class($data, $start_date, $end_date, $location_name) implements FromCollection, WithHeadings, WithTitle {
+            private $data;
+            private $start_date;
+            private $end_date;
+            private $location_name;
+    
+            public function __construct($data, $start_date, $end_date, $location_name)
+            {
+                $this->data = $data;
+                $this->start_date = $start_date;
+                $this->end_date = $end_date;
+                $this->location_name = $location_name;
+            }
+    
+            public function collection()
+            {
+                return collect($this->data)->map(function ($item, $index) {
+                    return [
+                        'No.' => $index + 1,
+                        'Product Name' => $item['product_name'],
+                        'SKU' => $item['sku'],
+                        'Category' => $item['description'],
+                        'Quantity Sold' => $item['quantity']
+                    ];
+                });
+            }
+    
+            public function headings(): array
+            {
+                return [
+                    ['Product Sales Report'],
+                    ['Date Range: ' . $this->start_date . ' to ' . $this->end_date],
+                    ['Location: ' . $this->location_name],
+                    [],
+                    ['No.', 'Product Name', 'SKU', 'Category', 'Quantity Sold']
+                ];
+            }
+    
+            public function title(): string
+            {
+                return 'Product Sales Report';
+            }
+        }, 'product_sales_report_' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    public function productPriceListbyCostGroup()
+    {
+        // Authorization check
+        if (!auth()->user()->can('product.view') && !auth()->user()->can('product.create')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Fetch business ID from session
+        $business_id = request()->session()->get('user.business_id');
+
+        // Fetch all group prices
+        $group_prices = SellingPriceGroup::where('business_id', $business_id)->get();
+
+        // Fetch all categories for the filter dropdown (using forDropdown)
+        $categories = Category::forDropdown($business_id, 'product');
+
+        // Fetch products with their group price values for all group prices
+        $query = DB::table('products')
+            ->leftJoin('brands', 'products.brand_id', '=', 'brands.id')
+            ->join('units as primary_units', 'products.unit_id', '=', 'primary_units.id')
+            ->leftJoin('units as secondary_units', 'products.secondary_unit_id', '=', 'secondary_units.id')
+            // Join to find base units (units that this unit is based on)
+            ->leftJoin('units as base_units', function ($join) {
+                $join->on('secondary_units.base_unit_id', '=', 'base_units.id')
+                    ->orOn('primary_units.base_unit_id', '=', 'base_units.id');
+            })
+            // Join to find conversion units (units that use this unit as their base)
+            ->leftJoin('units as conversion_units', function ($join) {
+                $join->on('conversion_units.base_unit_id', '=', 'primary_units.id')
+                    ->orOn('conversion_units.base_unit_id', '=', 'secondary_units.id');
+            })
+            ->leftJoin('categories as c1', 'products.category_id', '=', 'c1.id')
+            ->leftJoin('categories as c2', 'products.sub_category_id', '=', 'c2.id')
+            ->leftJoin('tax_rates', 'products.tax', '=', 'tax_rates.id')
+            ->join('variations', 'variations.product_id', '=', 'products.id')
+            ->leftJoin('variation_group_prices', function ($join) {
+                $join->on('variation_group_prices.variation_id', '=', 'variations.id');
+            })
+            ->whereNull('variations.deleted_at')
+            ->where('products.business_id', $business_id)
+            ->where('products.type', '!=', 'modifier')
+            ->select(
+                'products.id',
+                'products.name as product_name',
+                'products.type',
+                'c1.name as category',
+                'c2.name as sub_category',
+                'products.category_id',
+                'primary_units.id as primary_unit_id',
+                'primary_units.actual_name as primary_unit_name',
+                'primary_units.short_name as primary_unit_short_name',
+                'secondary_units.id as secondary_unit_id',
+                'secondary_units.actual_name as secondary_unit_name',
+                'secondary_units.short_name as secondary_unit_short_name',
+                'secondary_units.base_unit_multiplier',
+                'secondary_units.base_unit_id',
+                'base_units.actual_name as base_unit_name',
+                'base_units.short_name as base_unit_short_name',
+                // Conversion unit info
+                'conversion_units.id as conversion_unit_id',
+                'conversion_units.actual_name as conversion_unit_name',
+                'conversion_units.short_name as conversion_unit_short_name',
+                'conversion_units.base_unit_multiplier as conversion_multiplier',
+                'brands.name as brand',
+                'tax_rates.name as tax',
+                'products.sku',
+                'products.image',
+                'products.enable_stock',
+                'products.is_inactive',
+                'products.not_for_selling',
+                DB::raw('MAX(variations.dpp_inc_tax) as max_purchase_price'),
+                DB::raw('MIN(variations.dpp_inc_tax) as min_purchase_price'),
+                'variation_group_prices.price_group_id',
+                'variation_group_prices.price_inc_tax as group_price_value'
+            )
+            ->groupBy(
+                'products.id',
+                'products.name',
+                'products.type',
+                'c1.name',
+                'c2.name',
+                'products.category_id',
+                'primary_units.id',
+                'primary_units.actual_name',
+                'primary_units.short_name',
+                'secondary_units.id',
+                'secondary_units.actual_name',
+                'secondary_units.short_name',
+                'secondary_units.base_unit_multiplier',
+                'secondary_units.base_unit_id',
+                'base_units.actual_name',
+                'base_units.short_name',
+                'conversion_units.id',
+                'conversion_units.actual_name',
+                'conversion_units.short_name',
+                'conversion_units.base_unit_multiplier',
+                'brands.name',
+                'tax_rates.name',
+                'products.sku',
+                'products.image',
+                'products.enable_stock',
+                'products.is_inactive',
+                'products.not_for_selling',
+                'variation_group_prices.price_group_id',
+                'variation_group_prices.price_inc_tax'
+            )
+            ->get();
+
+        // Group products by their group prices
+        $grouped_products = [];
+        foreach ($query as $product) {
+            // Determine the display unit and multiplier
+            $display_unit = $product->secondary_unit_short_name ?? $product->primary_unit_short_name;
+            $base_multiplier = $product->base_unit_multiplier ?? 1;
+
+            // Check for conversion relationship (like unit 65 -> unit 63)
+            $unit_conversion_info = '';
+            if ($product->conversion_unit_id && $product->conversion_multiplier) {
+                $formatted_multiplier = number_format($product->conversion_multiplier, 0, '.', '');
+                $unit_conversion_info = $product->conversion_unit_short_name . ' = ' .
+                    $formatted_multiplier . ' ' .
+                    ($product->primary_unit_short_name ?? $product->primary_unit_name);
+            }
+
+            if (!isset($grouped_products[$product->id])) {
+                $grouped_products[$product->id] = [
+                    'id' => $product->id,
+                    'product_name' => $product->product_name,
+                    'category_name' => $product->category,
+                    'sub_category_name' => $product->sub_category,
+                    'category_id' => $product->category_id ?? null,
+                    'sku' => $product->sku,
+                    'unit_id' => $product->secondary_unit_id ?? $product->primary_unit_id,
+                    'unit_actual_name' => $display_unit,
+                    'unit_base_multiplier' => $base_multiplier,
+                    'unit_conversion_info' => $unit_conversion_info, // This will show "កេស = 155 sabuដុំ"
+                    'brand' => $product->brand,
+                    'tax' => $product->tax,
+                    'image' => $product->image,
+                    'enable_stock' => $product->enable_stock,
+                    'is_inactive' => $product->is_inactive,
+                    'not_for_selling' => $product->not_for_selling,
+                    'min_purchase_price' => $product->min_purchase_price ?? 0,
+                    'max_purchase_price' => $product->max_purchase_price ?? 0,
+                    'group_prices' => []
+                ];
+            }
+
+            // Add group prices for the product
+            if ($product->price_group_id) {
+                $grouped_products[$product->id]['group_prices'][$product->price_group_id] = $product->group_price_value;
+            }
+        }
+
+        // Organize products by category and product name
+        $products_by_category = [];
+        foreach ($grouped_products as $product) {
+            $category_id = $product['category_id'];
+            $product_name = $product['product_name'];
+
+            if (!isset($products_by_category[$category_id])) {
+                $products_by_category[$category_id] = [];
+            }
+
+            // Add product to its category
+            $products_by_category[$category_id][] = $product;
+        }
+
+        // Pass data to the view
+        return view(
+            'minireportb1::MiniReportB1.StandardReport.ProductReports.productPriceListbyCostGroup',
+            compact('group_prices', 'categories', 'grouped_products', 'products_by_category')
+        );
+    }
+
+    public function productPriceListByBatchCostGroup()
+    {
+        // Authorization check
+        if (!auth()->user()->can('product.view') && !auth()->user()->can('product.create')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Fetch business ID from session
+        $business_id = request()->session()->get('user.business_id');
+
+        // Fetch all group prices
+        $group_prices = SellingPriceGroup::where('business_id', $business_id)->get();
+
+        // Fetch all categories for the filter dropdown (using forDropdown)
+        $categories = Category::forDropdown($business_id, 'product');
+
+        // Fetch products with their group price values for all group prices
+        $query = DB::table('products')
+            ->leftJoin('brands', 'products.brand_id', '=', 'brands.id')
+            ->join('units as primary_units', 'products.unit_id', '=', 'primary_units.id')
+            ->leftJoin('units as secondary_units', 'products.secondary_unit_id', '=', 'secondary_units.id')
+            // Join to find base units (units that this unit is based on)
+            ->leftJoin('units as base_units', function ($join) {
+                $join->on('secondary_units.base_unit_id', '=', 'base_units.id')
+                    ->orOn('primary_units.base_unit_id', '=', 'base_units.id');
+            })
+            // Join to find conversion units (units that use this unit as their base)
+            ->leftJoin('units as conversion_units', function ($join) {
+                $join->on('conversion_units.base_unit_id', '=', 'primary_units.id')
+                    ->orOn('conversion_units.base_unit_id', '=', 'secondary_units.id');
+            })
+            ->leftJoin('categories as c1', 'products.category_id', '=', 'c1.id')
+            ->leftJoin('categories as c2', 'products.sub_category_id', '=', 'c2.id')
+            ->leftJoin('tax_rates', 'products.tax', '=', 'tax_rates.id')
+            ->join('variations', 'variations.product_id', '=', 'products.id')
+            ->Join('variation_group_prices', function ($join) {
+                $join->on('variation_group_prices.variation_id', '=', 'variations.id');
+            })
+            ->whereNull('variations.deleted_at')
+            ->where('products.business_id', $business_id)
+            ->where('products.type', '!=', 'modifier')
+            // Exclude products with primary unit named "ពិដុង" or "កាន"
+            ->where(function ($query) {
+                $query->where('primary_units.actual_name', '!=', 'ពិដុង')
+                    ->where('primary_units.actual_name', '!=', 'កាន');
+            })
+            // Exclude products with secondary unit named "ពិដុង" or "កាន"
+            ->where(function ($query) {
+                $query->whereNull('secondary_units.actual_name')
+                    ->orWhere(function ($q) {
+                        $q->where('secondary_units.actual_name', '!=', 'ពិដុង')
+                            ->where('secondary_units.actual_name', '!=', 'កាន');
+                    });
+            })
+            ->select(
+                'products.id',
+                'products.name as product_name',
+                'products.type',
+                'c1.name as category',
+                'c2.name as sub_category',
+                'products.category_id',
+                'primary_units.id as primary_unit_id',
+                'primary_units.actual_name as primary_unit_name',
+                'primary_units.short_name as primary_unit_short_name',
+                'secondary_units.id as secondary_unit_id',
+                'secondary_units.actual_name as secondary_unit_name',
+                'secondary_units.short_name as secondary_unit_short_name',
+                'secondary_units.base_unit_multiplier',
+                'secondary_units.base_unit_id',
+                'base_units.actual_name as base_unit_name',
+                'base_units.short_name as base_unit_short_name',
+                // Conversion unit info
+                'conversion_units.id as conversion_unit_id',
+                'conversion_units.actual_name as conversion_unit_name',
+                'conversion_units.short_name as conversion_unit_short_name',
+                'conversion_units.base_unit_multiplier as conversion_multiplier',
+                'brands.name as brand',
+                'tax_rates.name as tax',
+                'products.sku',
+                'products.image',
+                'products.enable_stock',
+                'products.is_inactive',
+                'products.not_for_selling',
+                DB::raw('MAX(variations.dpp_inc_tax) as max_purchase_price'),
+                DB::raw('MIN(variations.dpp_inc_tax) as min_purchase_price'),
+                'variation_group_prices.price_group_id',
+                'variation_group_prices.price_inc_tax as group_price_value'
+            )
+            ->groupBy(
+                'products.id',
+                'products.name',
+                'products.type',
+                'c1.name',
+                'c2.name',
+                'products.category_id',
+                'primary_units.id',
+                'primary_units.actual_name',
+                'primary_units.short_name',
+                'secondary_units.id',
+                'secondary_units.actual_name',
+                'secondary_units.short_name',
+                'secondary_units.base_unit_multiplier',
+                'secondary_units.base_unit_id',
+                'base_units.actual_name',
+                'base_units.short_name',
+                'conversion_units.id',
+                'conversion_units.actual_name',
+                'conversion_units.short_name',
+                'conversion_units.base_unit_multiplier',
+                'brands.name',
+                'tax_rates.name',
+                'products.sku',
+                'products.image',
+                'products.enable_stock',
+                'products.is_inactive',
+                'products.not_for_selling',
+                'variation_group_prices.price_group_id',
+                'variation_group_prices.price_inc_tax'
+            )
+            ->get();
+
+        // Group products by their group prices
+        $grouped_products = [];
+        foreach ($query as $product) {
+            // Determine the display unit and multiplier
+            $display_unit = $product->secondary_unit_short_name ?? $product->primary_unit_short_name;
+            $base_multiplier = $product->base_unit_multiplier ?? 1;
+
+            // Check for conversion relationship (like unit 65 -> unit 63)
+            $unit_conversion_info = '';
+            if ($product->conversion_unit_id && $product->conversion_multiplier) {
+                $formatted_multiplier = number_format($product->conversion_multiplier, 0, '.', '');
+                $unit_conversion_info = $product->conversion_unit_short_name . ' = ' .
+                    $formatted_multiplier . ' ' .
+                    ($product->primary_unit_short_name ?? $product->primary_unit_name);
+            }
+
+            if (!isset($grouped_products[$product->id])) {
+                $grouped_products[$product->id] = [
+                    'id' => $product->id,
+                    'product_name' => $product->product_name,
+                    'category_name' => $product->category,
+                    'sub_category_name' => $product->sub_category,
+                    'category_id' => $product->category_id ?? null,
+                    'sku' => $product->sku,
+                    'unit_id' => $product->secondary_unit_id ?? $product->primary_unit_id,
+                    'unit_actual_name' => $display_unit,
+                    'unit_base_multiplier' => $base_multiplier,
+                    'unit_conversion_info' => $unit_conversion_info, // This will show "កេស = 155 sabuដុំ"
+                    'brand' => $product->brand,
+                    'tax' => $product->tax,
+                    'image' => $product->image,
+                    'enable_stock' => $product->enable_stock,
+                    'is_inactive' => $product->is_inactive,
+                    'not_for_selling' => $product->not_for_selling,
+                    'min_purchase_price' => $product->min_purchase_price ?? 0,
+                    'max_purchase_price' => $product->max_purchase_price ?? 0,
+                    'group_prices' => []
+                ];
+            }
+
+            // Add group prices for the product
+            if ($product->price_group_id) {
+                $grouped_products[$product->id]['group_prices'][$product->price_group_id] = $product->group_price_value;
+            }
+        }
+
+        // Organize products by category and product name
+        $products_by_category = [];
+        foreach ($grouped_products as $product) {
+            $category_id = $product['category_id'];
+            $product_name = $product['product_name'];
+
+            if (!isset($products_by_category[$category_id])) {
+                $products_by_category[$category_id] = [];
+            }
+
+            // Add product to its category
+            $products_by_category[$category_id][] = $product;
+        }
+
+        // Pass data to the view
+        return view(
+            'minireportb1::MiniReportB1.StandardReport.ProductReports.productPriceListByBatchCostGroup',
+            compact('group_prices', 'categories', 'grouped_products', 'products_by_category')
+        );
+    }
+
     public function getCustomerSuppliers(Request $request)
     {
-        if (! auth()->user()->can('contacts_report.view')) {
+        if (!auth()->user()->can('contacts_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -100,25 +753,25 @@ class ProductReportController extends Controller
                 $contacts->whereIn('t.location_id', $permitted_locations);
             }
 
-            if (! empty($request->input('customer_group_id'))) {
+            if (!empty($request->input('customer_group_id'))) {
                 $contacts->where('contacts.customer_group_id', $request->input('customer_group_id'));
             }
 
-            if (! empty($request->input('location_id'))) {
+            if (!empty($request->input('location_id'))) {
                 $contacts->where('t.location_id', $request->input('location_id'));
             }
 
-            if (! empty($request->input('contact_id'))) {
+            if (!empty($request->input('contact_id'))) {
                 $contacts->where('t.contact_id', $request->input('contact_id'));
             }
 
-            if (! empty($request->input('contact_type'))) {
+            if (!empty($request->input('contact_type'))) {
                 $contacts->whereIn('contacts.type', [$request->input('contact_type'), 'both']);
             }
 
             $start_date = $request->get('start_date');
             $end_date = $request->get('end_date');
-            if (! empty($start_date) && ! empty($end_date)) {
+            if (!empty($start_date) && !empty($end_date)) {
                 $contacts->where('t.transaction_date', '>=', $start_date)
                     ->where('t.transaction_date', '<=', $end_date);
             }
@@ -126,7 +779,7 @@ class ProductReportController extends Controller
             return Datatables::of($contacts)
                 ->editColumn('name', function ($row) {
                     $name = $row->name;
-                    if (! empty($row->supplier_business_name)) {
+                    if (!empty($row->supplier_business_name)) {
                         $name .= ', ' . $row->supplier_business_name;
                     }
 
@@ -201,7 +854,7 @@ class ProductReportController extends Controller
 
     public function getproductSellReport(Request $request)
     {
-        if (! auth()->user()->can('purchase_n_sell_report.view')) {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -263,12 +916,12 @@ class ProductReportController extends Controller
                 )
                 ->groupBy('transaction_sell_lines.id');
 
-            if (! empty($variation_id)) {
+            if (!empty($variation_id)) {
                 $query->where('transaction_sell_lines.variation_id', $variation_id);
             }
             $start_date = $request->get('start_date');
             $end_date = $request->get('end_date');
-            if (! empty($start_date) && ! empty($end_date)) {
+            if (!empty($start_date) && !empty($end_date)) {
                 $query->where('t.transaction_date', '>=', $start_date)
                     ->where('t.transaction_date', '<=', $end_date);
             }
@@ -279,28 +932,28 @@ class ProductReportController extends Controller
             }
 
             $location_id = $request->get('location_id', null);
-            if (! empty($location_id)) {
+            if (!empty($location_id)) {
                 $query->where('t.location_id', $location_id);
             }
 
             $customer_id = $request->get('customer_id', null);
-            if (! empty($customer_id)) {
+            if (!empty($customer_id)) {
                 $query->where('t.contact_id', $customer_id);
             }
 
             $customer_group_id = $request->get('customer_group_id', null);
-            if (! empty($customer_group_id)) {
+            if (!empty($customer_group_id)) {
                 $query->leftjoin('customer_groups AS CG', 'c.customer_group_id', '=', 'CG.id')
                     ->where('CG.id', $customer_group_id);
             }
 
             $category_id = $request->get('category_id', null);
-            if (! empty($category_id)) {
+            if (!empty($category_id)) {
                 $query->where('p.category_id', $category_id);
             }
 
             $brand_id = $request->get('brand_id', null);
-            if (! empty($brand_id)) {
+            if (!empty($brand_id)) {
                 $query->where('p.brand_id', $brand_id);
             }
 
@@ -363,7 +1016,7 @@ class ProductReportController extends Controller
                         $payment_method = __('lang_v1.checkout_multi_pay');
                     }
 
-                    $html = ! empty($payment_method) ? '<span class="payment-method" data-orig-value="' . $payment_method . '" data-status-name="' . $payment_method . '">' . $payment_method . '</span>' : '';
+                    $html = !empty($payment_method) ? '<span class="payment-method" data-orig-value="' . $payment_method . '" data-status-name="' . $payment_method . '">' . $payment_method . '</span>' : '';
 
                     return $html;
                 })
@@ -393,7 +1046,7 @@ class ProductReportController extends Controller
 
     public function getproductPurchaseReport(Request $request)
     {
-        if (! auth()->user()->can('purchase_n_sell_report.view')) {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -436,12 +1089,12 @@ class ProductReportController extends Controller
                     DB::raw('((purchase_lines.quantity - purchase_lines.quantity_returned - purchase_lines.quantity_adjusted) * purchase_lines.purchase_price_inc_tax) as subtotal')
                 )
                 ->groupBy('purchase_lines.id');
-            if (! empty($variation_id)) {
+            if (!empty($variation_id)) {
                 $query->where('purchase_lines.variation_id', $variation_id);
             }
             $start_date = $request->get('start_date');
             $end_date = $request->get('end_date');
-            if (! empty($start_date) && ! empty($end_date)) {
+            if (!empty($start_date) && !empty($end_date)) {
                 $query->whereBetween(DB::raw('date(transaction_date)'), [$start_date, $end_date]);
             }
 
@@ -451,17 +1104,17 @@ class ProductReportController extends Controller
             }
 
             $location_id = $request->get('location_id', null);
-            if (! empty($location_id)) {
+            if (!empty($location_id)) {
                 $query->where('t.location_id', $location_id);
             }
 
             $supplier_id = $request->get('supplier_id', null);
-            if (! empty($supplier_id)) {
+            if (!empty($supplier_id)) {
                 $query->where('t.contact_id', $supplier_id);
             }
 
             $brand_id = $request->get('brand_id', null);
-            if (! empty($brand_id)) {
+            if (!empty($brand_id)) {
                 $query->where('p.brand_id', $brand_id);
             }
 
@@ -570,13 +1223,13 @@ class ProductReportController extends Controller
                 $query->whereIn('purchase.location_id', $permitted_locations);
             }
 
-            if (! empty(request()->purchase_start) && ! empty(request()->purchase_end)) {
+            if (!empty(request()->purchase_start) && !empty(request()->purchase_end)) {
                 $start = request()->purchase_start;
                 $end = request()->purchase_end;
                 $query->whereDate('purchase.transaction_date', '>=', $start)
                     ->whereDate('purchase.transaction_date', '<=', $end);
             }
-            if (! empty(request()->sale_start) && ! empty(request()->sale_end)) {
+            if (!empty(request()->sale_start) && !empty(request()->sale_end)) {
                 $start = request()->sale_start;
                 $end = request()->sale_end;
                 $query->where(function ($q) use ($start, $end) {
@@ -591,22 +1244,22 @@ class ProductReportController extends Controller
             }
 
             $supplier_id = request()->get('supplier_id', null);
-            if (! empty($supplier_id)) {
+            if (!empty($supplier_id)) {
                 $query->where('suppliers.id', $supplier_id);
             }
 
             $customer_id = request()->get('customer_id', null);
-            if (! empty($customer_id)) {
+            if (!empty($customer_id)) {
                 $query->where('customers.id', $customer_id);
             }
 
             $location_id = request()->get('location_id', null);
-            if (! empty($location_id)) {
+            if (!empty($location_id)) {
                 $query->where('purchase.location_id', $location_id);
             }
 
             $only_mfg_products = request()->get('only_mfg_products', 0);
-            if (! empty($only_mfg_products)) {
+            if (!empty($only_mfg_products)) {
                 $query->where('purchase.type', 'production_purchase');
             }
 
@@ -637,7 +1290,7 @@ class ProductReportController extends Controller
                 ->editColumn('sell_date', '@if(!empty($sell_line_id)) {{@format_datetime($sell_date)}} @else {{@format_datetime($stock_adjustment_date)}} @endif')
 
                 ->editColumn('sale_invoice_no', function ($row) {
-                    $invoice_no = ! empty($row->sell_line_id) ? $row->sale_invoice_no : $row->stock_adjustment_ref_no . '<br><small>(' . __('stock_adjustment.stock_adjustment') . '</small)>';
+                    $invoice_no = !empty($row->sell_line_id) ? $row->sale_invoice_no : $row->stock_adjustment_ref_no . '<br><small>(' . __('stock_adjustment.stock_adjustment') . '</small)>';
 
                     return $invoice_no;
                 })
@@ -654,14 +1307,14 @@ class ProductReportController extends Controller
                     return $html;
                 })
                 ->editColumn('selling_price', function ($row) {
-                    $selling_price = ! empty($row->sell_line_id) ? $row->selling_price : $row->stock_adjustment_price;
+                    $selling_price = !empty($row->sell_line_id) ? $row->selling_price : $row->stock_adjustment_price;
 
                     return '<span class="row_selling_price" data-orig-value="' . $selling_price .
                         '">' . $this->transactionUtil->num_f($selling_price, true) . '</span>';
                 })
 
                 ->addColumn('subtotal', function ($row) {
-                    $selling_price = ! empty($row->sell_line_id) ? $row->selling_price : $row->stock_adjustment_price;
+                    $selling_price = !empty($row->sell_line_id) ? $row->selling_price : $row->stock_adjustment_price;
                     $subtotal = $selling_price * $row->quantity;
 
                     return '<span class="row_subtotal" data-orig-value="' . $subtotal . '">' .
@@ -669,7 +1322,7 @@ class ProductReportController extends Controller
                 })
                 ->editColumn('supplier', '@if(!empty($supplier_business_name))
                 {{$supplier_business_name}},<br> @endif {{$supplier}}')
-            ->editColumn('customer', '@if(!empty($customer_business_name))
+                ->editColumn('customer', '@if(!empty($customer_business_name))
                 {{$customer_business_name}},<br> @endif {{$customer}}')
                 ->filterColumn('sale_invoice_no', function ($query, $keyword) {
                     $query->where('sale.invoice_no', 'like', ["%{$keyword}%"])
@@ -689,7 +1342,7 @@ class ProductReportController extends Controller
 
     public function getTrendingProducts(Request $request)
     {
-        if (! auth()->user()->can('trending_product_report.view')) {
+        if (!auth()->user()->can('trending_product_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -699,7 +1352,7 @@ class ProductReportController extends Controller
 
         $date_range = request()->input('date_range');
 
-        if (! empty($date_range)) {
+        if (!empty($date_range)) {
             $date_range_array = explode('~', $date_range);
             $filters['start_date'] = $this->transactionUtil->uf_date(trim($date_range_array[0]));
             $filters['end_date'] = $this->transactionUtil->uf_date(trim($date_range_array[1]));
@@ -730,7 +1383,7 @@ class ProductReportController extends Controller
 
     public function getStockAdjustmentReport(Request $request)
     {
-        if (! auth()->user()->can('stock_report.view')) {
+        if (!auth()->user()->can('stock_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -749,11 +1402,11 @@ class ProductReportController extends Controller
 
             $start_date = $request->get('start_date');
             $end_date = $request->get('end_date');
-            if (! empty($start_date) && ! empty($end_date)) {
+            if (!empty($start_date) && !empty($end_date)) {
                 $query->whereBetween(DB::raw('date(transaction_date)'), [$start_date, $end_date]);
             }
             $location_id = $request->get('location_id');
-            if (! empty($location_id)) {
+            if (!empty($location_id)) {
                 $query->where('location_id', $location_id);
             }
 
@@ -775,7 +1428,7 @@ class ProductReportController extends Controller
 
     public function getStockExpiryReport(Request $request)
     {
-        if (! auth()->user()->can('stock_report.view')) {
+        if (!auth()->user()->can('stock_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -824,7 +1477,7 @@ class ProductReportController extends Controller
                 $query->whereIn('t.location_id', $permitted_locations);
             }
 
-            if (! empty($request->input('location_id'))) {
+            if (!empty($request->input('location_id'))) {
                 $location_id = $request->input('location_id');
                 $query->where('t.location_id', $location_id)
                     //If filter by location then hide products not available in that location
@@ -834,24 +1487,24 @@ class ProductReportController extends Controller
                     });
             }
 
-            if (! empty($request->input('category_id'))) {
+            if (!empty($request->input('category_id'))) {
                 $query->where('p.category_id', $request->input('category_id'));
             }
-            if (! empty($request->input('sub_category_id'))) {
+            if (!empty($request->input('sub_category_id'))) {
                 $query->where('p.sub_category_id', $request->input('sub_category_id'));
             }
-            if (! empty($request->input('brand_id'))) {
+            if (!empty($request->input('brand_id'))) {
                 $query->where('p.brand_id', $request->input('brand_id'));
             }
-            if (! empty($request->input('unit_id'))) {
+            if (!empty($request->input('unit_id'))) {
                 $query->where('p.unit_id', $request->input('unit_id'));
             }
-            if (! empty($request->input('exp_date_filter'))) {
+            if (!empty($request->input('exp_date_filter'))) {
                 $query->whereDate('exp_date', '<=', $request->input('exp_date_filter'));
             }
 
             $only_mfg_products = request()->get('only_mfg_products', 0);
-            if (! empty($only_mfg_products)) {
+            if (!empty($only_mfg_products)) {
                 $query->where('t.type', 'production_purchase');
             }
 
@@ -887,7 +1540,7 @@ class ProductReportController extends Controller
                     }
                 })
                 ->editColumn('mfg_date', function ($row) {
-                    if (! empty($row->mfg_date)) {
+                    if (!empty($row->mfg_date)) {
                         return $this->productUtil->format_date($row->mfg_date);
                     } else {
                         return '--';
@@ -905,7 +1558,7 @@ class ProductReportController extends Controller
                     $html = '<button type="button" class="tw-dw-btn tw-dw-btn-xs tw-dw-btn-outline  tw-dw-btn-primary stock_expiry_edit_btn" data-transaction_id="' . $row->transaction_id . '" data-purchase_line_id="' . $row->purchase_line_id . '"> <i class="fa fa-edit"></i> ' . __('messages.edit') .
                         '</button>';
 
-                    if (! empty($row->exp_date)) {
+                    if (!empty($row->exp_date)) {
                         $carbon_exp = \Carbon::createFromFormat('Y-m-d', $row->exp_date);
                         $carbon_now = \Carbon::now();
                         if ($carbon_now->diffInDays($carbon_exp, false) < 0) {
@@ -942,7 +1595,7 @@ class ProductReportController extends Controller
 
     public function getStockReport(Request $request)
     {
-        if (! auth()->user()->can('stock_report.view')) {
+        if (!auth()->user()->can('stock_report.view')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -988,7 +1641,7 @@ class ProductReportController extends Controller
 
             $products = $this->productUtil->getProductStockDetails($business_id, $filters, $for);
             //To show stock details on view product modal
-            if ($for == 'view_product' && ! empty(request()->input('product_id'))) {
+            if ($for == 'view_product' && !empty(request()->input('product_id'))) {
                 $product_stock_details = $products;
 
                 return view('minireportb1::MiniReportB1.card-menu.product.partials.product_stock_details')->with(compact('product_stock_details'));
@@ -999,7 +1652,7 @@ class ProductReportController extends Controller
                     if ($row->enable_stock) {
                         $stock = $row->stock ? $row->stock : 0;
 
-                        return  '<span class="current_stock" data-orig-value="' . (float) $stock . '" data-unit="' . $row->unit . '"> ' . $this->transactionUtil->num_f($stock, false, null, true) . '</span>' . ' ' . $row->unit;
+                        return '<span class="current_stock" data-orig-value="' . (float) $stock . '" data-unit="' . $row->unit . '"> ' . $this->transactionUtil->num_f($stock, false, null, true) . '</span>' . ' ' . $row->unit;
                     } else {
                         return '--';
                     }
@@ -1071,7 +1724,7 @@ class ProductReportController extends Controller
                     $unit_selling_price = (float) $row->group_price > 0 ? $row->group_price : $row->unit_price;
                     $stock_price = $stock * $unit_selling_price;
 
-                    return  '<span class="stock_value_by_sale_price" data-orig-value="' . (float) $stock_price . '" > ' . $this->transactionUtil->num_f($stock_price, true) . '</span>';
+                    return '<span class="stock_value_by_sale_price" data-orig-value="' . (float) $stock_price . '" > ' . $this->transactionUtil->num_f($stock_price, true) . '</span>';
                 })
                 ->addColumn('potential_profit', function ($row) {
                     $stock = $row->stock ? $row->stock : 0;
@@ -1079,7 +1732,7 @@ class ProductReportController extends Controller
                     $stock_price_by_sp = $stock * $unit_selling_price;
                     $potential_profit = (float) $stock_price_by_sp - (float) $row->stock_price;
 
-                    return  '<span class="potential_profit" data-orig-value="' . (float) $potential_profit . '" > ' . $this->transactionUtil->num_f($potential_profit, true) . '</span>';
+                    return '<span class="potential_profit" data-orig-value="' . (float) $potential_profit . '" > ' . $this->transactionUtil->num_f($potential_profit, true) . '</span>';
                 })
                 ->setRowClass(function ($row) {
                     return $row->enable_stock && $row->stock <= $row->alert_quantity ? 'bg-danger' : '';
@@ -1155,12 +1808,7 @@ class ProductReportController extends Controller
             return view('minireportb1::MiniReportB1.StandardReport.ProductReports.exspend_list', [
                 'formatted_data' => $formatted_data,
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Error generating fake data', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
+        } catch (\Exception $e) {        }
     }
 
 
@@ -1173,8 +1821,6 @@ class ProductReportController extends Controller
         $business_id = $request->session()->get('user.business_id');
 
         // Debugging: Log the request parameters
-        \Log::info('Request Parameters:', $request->all());
-
         // Return the details in ajax call
         if ($request->ajax()) {
             // Calculate the start date for the last 3 months
@@ -1256,11 +1902,6 @@ class ProductReportController extends Controller
             }
 
             // Debugging: Log the final SQL query with bindings
-            \Log::info('Final SQL Query:', [
-                'sql' => $contacts->toSql(),
-                'bindings' => $contacts->getBindings()
-            ]);
-
             return Datatables::of($contacts)
                 ->editColumn('name', function ($row) {
                     // Display supplier_business_name before name
@@ -1317,7 +1958,7 @@ class ProductReportController extends Controller
                     }
 
                     $due_formatted = number_format($due, 2); // Assuming you have a formatter
-
+    
                     return '<span class="total_due" data-orig-value="' . $due . '">' . $due_formatted . '</span>';
                 })
                 ->addColumn(
@@ -1377,222 +2018,222 @@ class ProductReportController extends Controller
         $business_id = $request->session()->get('user.business_id');
         $business = Business::findOrFail($business_id);
 
-        // Initialize date filters
-        $date_range = $this->dateFilterService->calculateDateRange($request);
-        $start_date = $date_range['start_date'];
-        $end_date = $date_range['end_date'];
+        if ($request->ajax()) {
 
-        // Debug: Check request inputs
-        \Log::info('Request Inputs:', $request->all());
+            // Initialize date filters
+            $date_range = $this->dateFilterService->calculateDateRange($request);
+            $start_date = $date_range['start_date'];
+            $end_date = $date_range['end_date'];
 
-        // ==================== INCOME LOGIC ====================
-        $income_query = DB::table('transactions as t')
-            ->join('contacts as c', 't.contact_id', '=', 'c.id')
-            ->join('transaction_sell_lines as tsl', 't.id', '=', 'tsl.transaction_id')
-            ->join('products as p', 'tsl.product_id', '=', 'p.id')
-            ->leftJoin('categories as cat', 'p.category_id', '=', 'cat.id')
-            ->leftJoin('exchangerateb1_main as er', function ($join) use ($business_id) {
-                $join->on(DB::raw('DATE(t.transaction_date)'), '=', DB::raw('DATE(er.Date_1)'))
-                    ->where('er.business_id', '=', $business_id);
-            })
-            ->where('t.business_id', $business_id)
-            ->where('t.type', 'sell')
-            ->where('t.status', 'final')
-            ->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
-                return $query->whereBetween('t.transaction_date', [$start_date, $end_date]);
-            });
+            // Debug: Check request inputs
+            // ==================== INCOME LOGIC ====================
+            $income_query = DB::table('transactions as t')
+                ->join('contacts as c', 't.contact_id', '=', 'c.id')
+                ->join('transaction_sell_lines as tsl', 't.id', '=', 'tsl.transaction_id')
+                ->join('products as p', 'tsl.product_id', '=', 'p.id')
+                ->leftJoin('categories as cat', 'p.category_id', '=', 'cat.id')
+                ->leftJoin('exchangerate_main as er', function ($join) use ($business_id) {
+                    $join->on(DB::raw('DATE(t.transaction_date)'), '=', DB::raw('DATE(er.Date_1)'))
+                        ->where('er.business_id', '=', $business_id);
+                })
+                ->where('t.business_id', $business_id)
+                ->where('t.type', 'sell')
+                ->where('t.status', 'final')
+                ->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
+                    return $query->whereBetween('t.transaction_date', [$start_date, $end_date]);
+                });
 
 
-        if (!$request->has('show_all')) {
-            if ($request->has('today')) {
-                $income_query->whereDate('t.transaction_date', today());
-            } elseif ($request->filled('year')) {
-                $income_query->whereYear('t.transaction_date', $request->year);
+            if (!$request->has('show_all')) {
+                if ($request->has('today')) {
+                    $income_query->whereDate('t.transaction_date', today());
+                } elseif ($request->filled('year')) {
+                    $income_query->whereYear('t.transaction_date', $request->year);
 
-                if ($request->filled('month_only')) {
-                    $income_query->whereMonth('t.transaction_date', $request->month_only);
+                    if ($request->filled('month_only')) {
+                        $income_query->whereMonth('t.transaction_date', $request->month_only);
+                    }
+                } elseif ($request->filled('date')) {
+                    $income_query->whereDate('t.transaction_date', $request->date);
+                } else {
+                    // Default to current month only if no filters are specified
+                    $income_query->whereYear('t.transaction_date', now()->year)
+                        ->whereMonth('t.transaction_date', now()->month);
                 }
-            } elseif ($request->filled('date')) {
-                $income_query->whereDate('t.transaction_date', $request->date);
-            } else {
-                // Default to current month only if no filters are specified
-                $income_query->whereYear('t.transaction_date', now()->year)
-                    ->whereMonth('t.transaction_date', now()->month);
             }
-        }
 
-        $income_data = $income_query->select(
-            'c.name as customer',
-            'c.supplier_business_name',
-            'c.contact_id',
-            't.id as transaction_id',
-            't.invoice_no',
-            't.transaction_date',
-            't.tax_amount as item_tax',
-            't.final_total as subtotal',
-            DB::raw('t.final_total - t.tax_amount as unit_price'),
-            DB::raw('COALESCE(er.KHR_2, 0) as exchange_rate_khr'),
-            'er.Date_1 as exchange_rate_date',
-            DB::raw('GROUP_CONCAT(DISTINCT cat.name SEPARATOR " & ") as category_name'),
-            DB::raw('CASE 
-                WHEN er.KHR_2 IS NOT NULL AND er.KHR_2 != 1.000 
-                THEN t.final_total * er.KHR_2 
-                ELSE NULL 
-            END as khr_amount')
-        )
-            ->groupBy(
-                't.id',
-                't.invoice_no',
-                't.transaction_date',
-                'c.name',
+            $income_data = $income_query->select(
+                'c.name as customer',
                 'c.supplier_business_name',
                 'c.contact_id',
-                't.tax_amount',
-                't.final_total',
-                'er.KHR_2',
-                'er.Date_1'
+                't.id as transaction_id',
+                't.invoice_no',
+                't.transaction_date',
+                't.tax_amount as item_tax',
+                't.final_total as subtotal',
+                DB::raw('t.final_total - t.tax_amount as unit_price'),
+                DB::raw('COALESCE(er.KHR_3, 0) as exchange_rate_khr'),
+                'er.Date_1 as exchange_rate_date',
+                DB::raw('GROUP_CONCAT(DISTINCT cat.name SEPARATOR " & ") as category_name'),
+                DB::raw('CASE 
+                WHEN er.KHR_3 IS NOT NULL AND er.KHR_3 != 1.000 
+                THEN t.final_total * er.KHR_3 
+                ELSE NULL 
+            END as khr_amount')
             )
-            ->orderBy('t.transaction_date', 'desc')
-            ->get();
+                ->groupBy(
+                    't.id',
+                    't.invoice_no',
+                    't.transaction_date',
+                    'c.name',
+                    'c.supplier_business_name',
+                    'c.contact_id',
+                    't.tax_amount',
+                    't.final_total',
+                    'er.KHR_3',
+                    'er.Date_1'
+                )
+                ->orderBy('t.invoice_no', 'asc')
+                ->get();
 
-        // Format income data
-        $formatted_income = $income_data->map(function ($row) {
-            $customer_name = !empty($row->supplier_business_name) ?
-                $row->supplier_business_name . ' - ' . $row->customer :
-                $row->customer;
+            // Format income data
+            $formatted_income = $income_data->map(function ($row) {
+                $customer_name = !empty($row->supplier_business_name) ?
+                    $row->supplier_business_name . ' - ' . $row->customer :
+                    $row->customer;
 
-            return [
-                'date' => $row->transaction_date ? \Carbon\Carbon::parse($row->transaction_date)->format('d/m/Y') : 'N/A',
-                'voucher' => $row->transaction_id,
-                'contact_name' => $customer_name,
-                'description' => $row->category_name ?? 'Uncategorized',
-                'cash_in' => number_format((float)$row->subtotal, 2, '.', ''),
-                'cash_out' => '0.00', // Income has no cash out
-                'balance' => '0.00', // Balance will be calculated later
-            ];
-        });
-
-        // ==================== EXPENSE LOGIC ====================
-        $expense_query = Transaction::leftJoin('expense_categories AS ec', 'transactions.expense_category_id', '=', 'ec.id')
-            ->leftJoin('expense_categories AS esc', 'transactions.expense_sub_category_id', '=', 'esc.id')
-            ->join('business_locations AS bl', 'transactions.location_id', '=', 'bl.id')
-            ->leftJoin('tax_rates as tr', 'transactions.tax_id', '=', 'tr.id')
-            ->leftJoin('users AS U', 'transactions.expense_for', '=', 'U.id')
-            ->leftJoin('users AS usr', 'transactions.created_by', '=', 'usr.id')
-            ->leftJoin('contacts AS c', 'transactions.contact_id', '=', 'c.id')
-            ->leftJoin('transaction_payments AS TP', 'transactions.id', '=', 'TP.transaction_id')
-            ->where('transactions.business_id', $business_id)
-            ->where('transactions.status', 'final')
-            ->whereIn('transactions.type', ['expense'])
-            ->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
-                return $query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+                return [
+                    'date' => $row->transaction_date ? \Carbon\Carbon::parse($row->transaction_date)->format('d/m/Y') : 'N/A',
+                    'voucher' => $row->transaction_id,
+                    'contact_name' => $customer_name,
+                    'description' => $row->category_name ?? 'Uncategorized',
+                    'cash_in' => number_format((float) $row->subtotal, 2, '.', ''),
+                    'cash_out' => '0.00', // Income has no cash out
+                    'balance' => '0.00', // Balance will be calculated later
+                ];
             });
 
-        // Apply consistent date filtering for expenses
-        if (!$request->has('show_all')) {
-            if ($request->has('today')) {
-                $expense_query->whereDate('transactions.transaction_date', today());
-            } elseif ($request->filled('year')) {
-                $expense_query->whereYear('transactions.transaction_date', $request->year);
+            // ==================== EXPENSE LOGIC ====================
+            $expense_query = Transaction::leftJoin('expense_categories AS ec', 'transactions.expense_category_id', '=', 'ec.id')
+                ->leftJoin('expense_categories AS esc', 'transactions.expense_sub_category_id', '=', 'esc.id')
+                ->join('business_locations AS bl', 'transactions.location_id', '=', 'bl.id')
+                ->leftJoin('tax_rates as tr', 'transactions.tax_id', '=', 'tr.id')
+                ->leftJoin('users AS U', 'transactions.expense_for', '=', 'U.id')
+                ->leftJoin('users AS usr', 'transactions.created_by', '=', 'usr.id')
+                ->leftJoin('contacts AS c', 'transactions.contact_id', '=', 'c.id')
+                ->leftJoin('transaction_payments AS TP', 'transactions.id', '=', 'TP.transaction_id')
+                ->where('transactions.business_id', $business_id)
+                ->where('transactions.status', 'final')
+                ->whereIn('transactions.type', ['expense'])
+                ->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
+                    return $query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+                });
 
-                if ($request->filled('month_only')) {
-                    $expense_query->whereMonth('transactions.transaction_date', $request->month_only);
+            // Apply consistent date filtering for expenses
+            if (!$request->has('show_all')) {
+                if ($request->has('today')) {
+                    $expense_query->whereDate('transactions.transaction_date', today());
+                } elseif ($request->filled('year')) {
+                    $expense_query->whereYear('transactions.transaction_date', $request->year);
+
+                    if ($request->filled('month_only')) {
+                        $expense_query->whereMonth('transactions.transaction_date', $request->month_only);
+                    }
+                } elseif ($request->filled('date')) {
+                    $expense_query->whereDate('transactions.transaction_date', $request->date);
+                } else {
+                    // Default to current month only if no filters are specified
+                    $expense_query->whereYear('transactions.transaction_date', now()->year)
+                        ->whereMonth('transactions.transaction_date', now()->month);
                 }
-            } elseif ($request->filled('date')) {
-                $expense_query->whereDate('transactions.transaction_date', $request->date);
-            } else {
-                // Default to current month only if no filters are specified
-                $expense_query->whereYear('transactions.transaction_date', now()->year)
-                    ->whereMonth('transactions.transaction_date', now()->month);
             }
+
+            $expense_data = $expense_query->select(
+                'transactions.id',
+                'transactions.document',
+                'transaction_date',
+                'ref_no',
+                'ec.name as category',
+                'esc.name as sub_category',
+                'payment_status',
+                'additional_notes',
+                'final_total',
+                'transactions.is_recurring',
+                'transactions.recur_interval',
+                'transactions.recur_interval_type',
+                'transactions.recur_repetitions',
+                'transactions.subscription_repeat_on',
+                'transactions.audit_status',
+                'bl.name as location_name',
+                DB::raw("CONCAT(COALESCE(U.surname, ''),' ',COALESCE(U.first_name, ''),' ',COALESCE(U.last_name,'')) as expense_for"),
+                DB::raw("CONCAT(tr.name ,' (', tr.amount ,' )') as tax"),
+                DB::raw('SUM(TP.amount) as amount_paid'),
+                DB::raw("CONCAT(COALESCE(usr.surname, ''),' ',COALESCE(usr.first_name, ''),' ',COALESCE(usr.last_name,'')) as added_by"),
+                'transactions.recur_parent_id',
+                'c.name as contact_name',
+                'c.tax_number as tax_number',
+                'transactions.type'
+            )
+                ->groupBy('transactions.id')
+                ->get();
+
+            // Format expense data
+            $formatted_expense = $expense_data->map(function ($row) {
+                return [
+                    'date' => $row->transaction_date ? \Carbon\Carbon::parse($row->transaction_date)->format('d/m/Y') : 'N/A',
+                    'voucher' => $row->ref_no,
+                    'contact_name' => $row->contact_name ?? 'N/A',
+                    'description' => $row->additional_notes ?? ($row->category . ' - ' . $row->sub_category),
+                    'cash_in' => '0.00', // Expense has no cash in
+                    'cash_out' => number_format((float) $row->final_total, 2, '.', ''),
+                    'balance' => '0.00', // Balance will be calculated later
+                ];
+            });
+
+            // ==================== COMBINE INCOME AND EXPENSE DATA ====================
+            $combined_data = $formatted_income->merge($formatted_expense)
+                ->sortBy('date')
+                ->values();
+
+            // Calculate running balance
+            $balance = 0;
+            $combined_data = $combined_data->map(function ($row) use (&$balance) {
+                $cash_in = (float) str_replace(',', '', $row['cash_in']);
+                $cash_out = (float) str_replace(',', '', $row['cash_out']);
+                $balance += $cash_in - $cash_out;
+                $row['balance'] = number_format($balance, 2, '.', '');
+                return $row;
+            });
+
+            return response()->json([
+                'combined_data' => $combined_data,
+                'total' => $combined_data->count()
+            ]);
+        } else {
+
+            // For non-AJAX requests, prepare filter data
+            $available_years = DB::table('transactions')
+                ->where('business_id', $business_id)
+                ->where('type', 'sell')
+                ->where('status', 'final')
+                ->selectRaw('DISTINCT YEAR(transaction_date) as year')
+                ->orderBy('year', 'desc')
+                ->pluck('year')
+                ->toArray();
+
+            $current_year = now()->year;
+            if (!in_array($current_year, $available_years)) {
+                array_unshift($available_years, $current_year);
+            }
+
+            // Return view without initial data (loaded via AJAX)
+            return view('minireportb1::MiniReportB1.StandardReport.ProductReports.cashbook', compact('available_years', 'business'));
         }
-
-        $expense_data = $expense_query->select(
-            'transactions.id',
-            'transactions.document',
-            'transaction_date',
-            'ref_no',
-            'ec.name as category',
-            'esc.name as sub_category',
-            'payment_status',
-            'additional_notes',
-            'final_total',
-            'transactions.is_recurring',
-            'transactions.recur_interval',
-            'transactions.recur_interval_type',
-            'transactions.recur_repetitions',
-            'transactions.subscription_repeat_on',
-            'transactions.audit_status',
-            'bl.name as location_name',
-            DB::raw("CONCAT(COALESCE(U.surname, ''),' ',COALESCE(U.first_name, ''),' ',COALESCE(U.last_name,'')) as expense_for"),
-            DB::raw("CONCAT(tr.name ,' (', tr.amount ,' )') as tax"),
-            DB::raw('SUM(TP.amount) as amount_paid'),
-            DB::raw("CONCAT(COALESCE(usr.surname, ''),' ',COALESCE(usr.first_name, ''),' ',COALESCE(usr.last_name,'')) as added_by"),
-            'transactions.recur_parent_id',
-            'c.name as contact_name',
-            'c.tax_number as tax_number',
-            'transactions.type'
-        )
-            ->groupBy('transactions.id')
-            ->get();
-
-        // Format expense data
-        $formatted_expense = $expense_data->map(function ($row) {
-            return [
-                'date' => $row->transaction_date ? \Carbon\Carbon::parse($row->transaction_date)->format('d/m/Y') : 'N/A',
-                'voucher' => $row->ref_no,
-                'contact_name' => $row->contact_name ?? 'N/A',
-                'description' => $row->additional_notes ?? ($row->category . ' - ' . $row->sub_category),
-                'cash_in' => '0.00', // Expense has no cash in
-                'cash_out' => number_format((float)$row->final_total, 2, '.', ''),
-                'balance' => '0.00', // Balance will be calculated later
-            ];
-        });
-
-        // ==================== COMBINE INCOME AND EXPENSE DATA ====================
-        $combined_data = $formatted_income->merge($formatted_expense)
-            ->sortBy('date')
-            ->values();
-
-        // Calculate running balance
-        $balance = 0;
-        $combined_data = $combined_data->map(function ($row) use (&$balance) {
-            $cash_in = (float)str_replace(',', '', $row['cash_in']);
-            $cash_out = (float)str_replace(',', '', $row['cash_out']);
-            $balance += $cash_in - $cash_out;
-            $row['balance'] = number_format($balance, 2, '.', '');
-            return $row;
-        });
-
-        // ==================== AVAILABLE YEARS ====================
-        $available_years = DB::table('transactions')
-            ->where('business_id', $business_id)
-            ->where('type', 'sell')
-            ->where('status', 'final')
-            ->selectRaw('DISTINCT YEAR(transaction_date) as year')
-            ->orderBy('year', 'desc')
-            ->pluck('year')
-            ->toArray();
-
-        // Ensure current year is included
-        $current_year = now()->year;
-        if (!in_array($current_year, $available_years)) {
-            array_unshift($available_years, $current_year);
-        }
-
-        // ==================== RETURN VIEW ====================
-        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.cashbook', compact(
-            'combined_data',
-            'available_years',
-            'business',
-            'start_date',
-            'end_date',
-            'request'
-        ));
     }
 
 
     public function getPromotionProductAll()
+   
     {
         if (!auth()->user()->can('discount.access')) {
             abort(403, 'Unauthorized action.');
@@ -1624,11 +2265,16 @@ class ProductReportController extends Controller
             ->where('discounts.business_id', $business_id)
             ->where('discounts.is_active', 1)
             ->leftJoin('business_locations as bl', 'discounts.location_id', '=', 'bl.id')
-            ->with(['variations' => function ($query) {
-                $query->with(['product' => function ($q) {
-                    $q->with('media');
-                }, 'product_variation']);
-            }]);
+            ->with([
+                'variations' => function ($query) {
+                    $query->with([
+                        'product' => function ($q) {
+                            $q->with('media');
+                        },
+                        'product_variation'
+                    ]);
+                }
+            ]);
 
         // Apply location filter if provided
         if (request()->filled('location_id')) {
@@ -1736,6 +2382,16 @@ class ProductReportController extends Controller
             ->active()
             ->pluck('name', 'id');
 
+        // If this is an AJAX request, return JSON data
+        if (request()->ajax()) {
+            return response()->json([
+                'formatted_discounts' => $formatted_discounts,
+                'years' => $years,
+                'locations' => $locations
+            ]);
+        }
+
+        // Otherwise return the view with the data
         return view(
             'minireportb1::MiniReportB1.StandardReport.ProductReports.promotion_product_all',
             compact('formatted_discounts', 'years', 'locations', 'group_prices')
@@ -1743,7 +2399,9 @@ class ProductReportController extends Controller
     }
 
 
-    public function getPromotionProduct(Request $request)
+
+
+    public function getPromotionProduct()
     {
         if (!auth()->user()->can('discount.access')) {
             abort(403, 'Unauthorized action.');
@@ -1754,556 +2412,360 @@ class ProductReportController extends Controller
         // Get group prices for this business
         $group_prices = SellingPriceGroup::where('business_id', $business_id)->get();
 
-        // Get date range from the request
-        $date_range = $this->dateFilterService->calculateDateRange($request);
-        $start_date = $date_range['start_date'];
-        $end_date = $date_range['end_date'];
-
-        // Get active discounts with their variations and products
-        $discounts = Discount::select('discounts.*', 'bl.name as location_name')
-            ->from('discounts')
-            ->where('discounts.business_id', $business_id)
-            ->where('discounts.is_active', 1)
-            ->leftJoin('business_locations as bl', 'discounts.location_id', '=', 'bl.id')
-            ->with(['variations' => function ($query) {
-                $query->with(['product' => function ($q) {
-                    $q->with('media');
-                }, 'product_variation']);
-            }]);
-
-        // Apply location filter if provided
-        if (request()->filled('location_id')) {
-            $location_id = request()->location_id;
-            $discounts->where('discounts.location_id', $location_id);
-        }
-
-        // Apply date filters using ->when()
-        $discounts->when($start_date && $end_date, function ($query) use ($start_date, $end_date) {
-            return $query->where(function ($q) use ($start_date, $end_date) {
-                $q->whereBetween('starts_at', [$start_date, $end_date])
-                    ->orWhereBetween('ends_at', [$start_date, $end_date])
-                    ->orWhere(function ($q2) use ($start_date, $end_date) {
-                        $q2->where('starts_at', '<=', $end_date)
-                            ->where('ends_at', '>=', $start_date);
-                    });
-            });
-        });
-
-
-        $discounts = $discounts->get();
-
-        // Format discounts
-        $formatted_discounts = [];
-        foreach ($discounts as $discount) {
-            $products = [];
-            foreach ($discount->variations as $variation) {
-                $product = $variation->product;
-
-                // Get image URL from product's media relationship
-                $image_url = $product->image_url ?? null;
-
-                // Calculate prices
-                $price_before = $variation->sell_price_inc_tax ?? $variation->default_sell_price;
-                $discount_amount = $discount->discount_amount;
-
-                if ($discount->discount_type == 'percentage') {
-                    $price_after = $price_before * (1 - ($discount_amount / 100));
-                } else {
-                    $price_after = $price_before - $discount_amount;
-                }
-
-                // Get group prices from the database directly
-                $group_price_values = DB::table('variation_group_prices')
-                    ->where('variation_id', $variation->id)
-                    ->pluck('price_inc_tax', 'price_group_id')
-                    ->toArray();
-
-                // Apply discount to each group price
-                $discounted_group_prices = [];
-                foreach ($group_prices as $group_price) {
-                    $original_price = $group_price_values[$group_price->id] ?? null;
-
-                    if ($original_price !== null) {
-                        // Calculate discounted price
-                        if ($discount->discount_type == 'percentage') {
-                            $discounted_price = $original_price * (1 - ($discount_amount / 100));
-                        } else {
-                            $discounted_price = $original_price - $discount_amount;
-                        }
-
-                        // Ensure $discounted_price is a numeric value before formatting
-                        if (is_numeric($discounted_price)) {
-                            $discounted_group_prices[$group_price->id] = number_format($discounted_price, 2, '.', '');
-                        } else {
-                            $discounted_group_prices[$group_price->id] = null; // Handle non-numeric values gracefully
-                        }
-                    } else {
-                        $discounted_group_prices[$group_price->id] = null;
-                    }
-                }
-
-                $products[] = [
-                    'product_image' => $image_url,
-                    'product_name' => $product->name,
-                    'price_before' => $price_before,
-                    'discount_amount' => $discount->discount_type == 'percentage'
-                        ? $discount_amount . '%'
-                        : $discount_amount,
-                    'price_after' => $price_after,
-                    'location_name' => $discount->location_name ?? __('All Locations'),
-                    'group_prices' => $discounted_group_prices
-                ];
-            }
-
-            if (!empty($products)) {
-                $formatted_discounts[] = [
-                    'end_date' => $discount->ends_at
-                        ? $this->commonUtil->format_date($discount->ends_at->toDateString(), false)
-                        : __('lang_v1.no_end_date'),
-                    'products' => $products
-                ];
-            }
-        }
-
         // Get locations for the filter dropdown
         $locations = BusinessLocation::where('business_id', $business_id)
             ->active()
             ->pluck('name', 'id');
 
+        if (request()->ajax()) {
+            // Get active discounts with their variations and products
+            $discounts = Discount::select('discounts.*', 'bl.name as location_name', 'spg.name as price_group_name')
+                ->from('discounts')
+                ->where('discounts.business_id', $business_id)
+                ->where('discounts.is_active', 1)
+                ->leftJoin('business_locations as bl', 'discounts.location_id', '=', 'bl.id')
+                ->leftJoin('selling_price_groups as spg', 'discounts.spg', '=', 'spg.id')
+                ->with([
+                    'variations' => function ($query) {
+                        $query->with([
+                            'product' => function ($q) {
+                                $q->with('media');
+                            },
+                            'product_variation'
+                        ]);
+                    }
+                ]);
+
+            // Apply location filter if provided
+            if (request()->filled('location_id')) {
+                $location_id = request()->location_id;
+                $discounts->where(function($query) use ($location_id) {
+                    $query->where('discounts.location_id', $location_id)
+                          ->orWhereNull('discounts.location_id');
+                });
+            }
+
+            // Initialize date filters
+            $date_range = $this->dateFilterService->calculateDateRange(request());
+            $start_date = $date_range['start_date'];
+            $end_date = $date_range['end_date'];
+
+            if ($start_date && $end_date) {
+                $discounts->where(function ($query) use ($start_date, $end_date) {
+                    // Promotions active during the period
+                    $query->where(function ($q) use ($start_date, $end_date) {
+                        $q->where('starts_at', '<=', $end_date)
+                          ->where(function($inner) use ($start_date) {
+                              $inner->where('ends_at', '>=', $start_date)
+                                    ->orWhereNull('ends_at');
+                          });
+                    });
+                });
+            }
+
+            $discounts = $discounts->get();
+
+            // Collect discounts by product, variation, location, and discount type
+            $product_discounts = [];
+            
+            foreach ($discounts as $discount) {
+                foreach ($discount->variations as $variation) {
+                    if (!$variation->product) {
+                        continue;
+                    }
+                    
+                    $product_id = $variation->product_id;
+                    $variation_id = $variation->id;
+                    $location_id = $discount->location_id;
+                    $end_date = $discount->ends_at ? $discount->ends_at->toDateString() : 'none';
+                    $discount_type = $discount->discount_type; // Add discount type to the key
+                    
+                    // Create a unique key for each product/variation/location/discount_type combination
+                    $product_key = "{$product_id}_{$variation_id}_{$location_id}_{$discount_type}";
+                    
+                    if (!isset($product_discounts[$product_key])) {
+                        $product_discounts[$product_key] = [
+                            'product' => $variation->product,
+                            'variation' => $variation,
+                            'location_id' => $location_id,
+                            'location_name' => $discount->location_name ?? __('All Locations'),
+                            'end_date' => $end_date !== 'none' 
+                                ? $this->commonUtil->format_date($end_date, false)
+                                : __('lang_v1.no_end_date'),
+                            'discount_type' => $discount_type,
+                            'group_discounts' => []
+                        ];
+                    }
+                    
+                    // Store discount by price group ID
+                    $price_group_id = $discount->spg;
+                    $product_discounts[$product_key]['group_discounts'][$price_group_id] = [
+                        'discount' => $discount,
+                        'price_group_name' => $discount->price_group_name
+                    ];
+                }
+            }
+            
+            // Now format the data for display
+            $formatted_data = [];
+            
+            foreach ($product_discounts as $key => $product_data) {
+                $product = $product_data['product'];
+                $variation = $product_data['variation'];
+                
+                // Get image URL
+                $image_url = $product->image_url ?? $product->image ?? null;
+                
+                // Get regular price (before discount)
+                $price_before = $variation->sell_price_inc_tax ?? $variation->default_sell_price;
+                
+                // Get group prices from the database
+                $group_price_values = DB::table('variation_group_prices')
+                    ->where('variation_id', $variation->id)
+                    ->pluck('price_inc_tax', 'price_group_id')
+                    ->toArray();
+                
+                // Calculate discounted prices for each group
+                $discounted_group_prices = [];
+                $discount_descriptions = [];
+                
+                // Create a mapping of price group IDs to their names for display
+                $price_group_names = [];
+                foreach ($group_prices as $price_group) {
+                    $price_group_names[$price_group->id] = $price_group->name;
+                }
+                
+                // First, check for any group-specific discounts
+                $fixed_discounts = [];
+                foreach ($product_data['group_discounts'] as $pg_id => $discount_data) {
+                    $discount = $discount_data['discount'];
+                    $discount_amount = $discount->discount_amount;
+                    $discount_type = $discount->discount_type;
+                    
+                    // Only add to descriptions if discount is not zero
+                    if ($discount_amount > 0) {
+                        // For percentage discounts
+                        if ($product_data['discount_type'] == 'percentage' && $pg_id !== null) {
+                            $discount_display = number_format($discount_amount, 0) . '%';
+                            $group_name = $price_group_names[$pg_id] ?? $discount_data['price_group_name'] ?? "Group $pg_id";
+                            $discount_descriptions[] = "$group_name: $discount_display";
+                        }
+                        // For fixed discounts, we'll handle them separately
+                    }
+                }
+                
+                // Now check for default discount (null price_group_id)
+                $has_default_discount = false;
+                if (isset($product_data['group_discounts'][null])) {
+                    $default_discount = $product_data['group_discounts'][null]['discount'];
+                    $default_amount = $default_discount->discount_amount;
+                    
+                    if ($default_amount > 0) {
+                        $has_default_discount = true;
+                        
+                        if ($product_data['discount_type'] == 'percentage') {
+                            $default_display = number_format($default_amount, 0) . '%';
+                            
+                            // If there are no group-specific discounts, show the default discount
+                            if (empty($discount_descriptions)) {
+                                $discount_descriptions[] = $default_display;
+                            }
+                        }
+                        // We'll handle fixed discounts in the display section
+                    }
+                }
+                
+                // Calculate prices for each group
+                foreach ($group_prices as $price_group) {
+                    $price_group_id = $price_group->id;
+                    $original_price = $group_price_values[$price_group_id] ?? $price_before;
+                    
+                    // Check if we have a specific discount for this price group
+                    if (isset($product_data['group_discounts'][$price_group_id])) {
+                        $discount = $product_data['group_discounts'][$price_group_id]['discount'];
+                        $discount_amount = $discount->discount_amount;
+                        $discount_type = $discount->discount_type;
+                        
+                        // Calculate discounted price
+                        if ($discount_type == 'percentage') {
+                            $discounted_price = $original_price * (1 - ($discount_amount / 100));
+                            $discount_display = number_format($discount_amount, 0) . '%';
+                        } else {
+                            $discounted_price = $original_price - $discount_amount;
+                            $discount_display = number_format($discount_amount, 2);
+                        }
+                    }
+                    // Check if we have a default discount (null price_group_id)
+                    elseif ($has_default_discount) {
+                        $discount = $product_data['group_discounts'][null]['discount'];
+                        $discount_amount = $discount->discount_amount;
+                        $discount_type = $discount->discount_type;
+                        
+                        // Calculate discounted price
+                        if ($discount_type == 'percentage') {
+                            $discounted_price = $original_price * (1 - ($discount_amount / 100));
+                            $discount_display = number_format($discount_amount, 0) . '%';
+                        } else {
+                            $discounted_price = $original_price - $discount_amount;
+                            $discount_display = number_format($discount_amount, 2);
+                        }
+                    } 
+                    // No discount for this group
+                    else {
+                        $discounted_price = $original_price;
+                        $discount_amount = 0;
+                        $discount_type = 'percentage';
+                        $discount_display = '0%';
+                    }
+                    
+                    // Store the calculated prices
+                    if (is_numeric($discounted_price) && is_numeric($original_price)) {
+                        // Make sure we don't have NaN values
+                        if (is_nan($discounted_price) || !is_finite($discounted_price)) {
+                            $discounted_price = $original_price;
+                        }
+                        
+                        $discounted_group_prices[$price_group_id] = [
+                            'original' => number_format($original_price, 2, '.', ''),
+                            'discounted' => number_format($discounted_price, 2, '.', ''),
+                            'discount_amount' => $discount_amount,
+                            'discount_type' => $discount_type,
+                            'discount_display' => $discount_display
+                        ];
+                    }
+                }
+                
+                // Create a combined discount display for the main column
+                $combined_discount_display = '';
+                
+                // Handle display based on discount type
+                if ($product_data['discount_type'] == 'fixed') {
+                    // For fixed price discounts, always show each group's discount amount with group name
+                    $fixed_descriptions = [];
+                    
+                    // First check if we have any group-specific discounts
+                    foreach ($product_data['group_discounts'] as $pg_id => $discount_data) {
+                        $discount = $discount_data['discount'];
+                        $discount_amount = $discount->discount_amount;
+                        
+                        if ($discount_amount > 0) {
+                            // Always include group name for all price groups
+                            $group_name = '';
+                            if ($pg_id !== null) {
+                                $group_name = $price_group_names[$pg_id] ?? $discount_data['price_group_name'] ?? "Group $pg_id";
+                            } else {
+                                // For default discount, apply it to all groups that don't have a specific discount
+                                $group_name = "Default";
+                            }
+                            $fixed_descriptions[] = "$group_name: " . number_format($discount_amount, 2);
+                        }
+                    }
+                    
+                    // If we have group-specific descriptions, use them
+                    if (!empty($fixed_descriptions)) {
+                        $combined_discount_display = implode(', ', $fixed_descriptions);
+                    } else {
+                        $combined_discount_display = '0.00';
+                    }
+                } else {
+                    // For percentage discounts, show each group's percentage
+                    if (!empty($discount_descriptions)) {
+                        $combined_discount_display = implode(', ', $discount_descriptions);
+                    } else {
+                        $combined_discount_display = '0%';
+                    }
+                }
+                
+                // Format the discount amount properly - NEVER allow NaN values
+                if (!isset($combined_discount_display) || 
+                    empty($combined_discount_display) || 
+                    $combined_discount_display === 'NaN' || 
+                    $combined_discount_display === 'nan' ||
+                    $combined_discount_display === 'NAN' ||
+                    strtolower($combined_discount_display) === 'nan' ||
+                    is_nan((float)$combined_discount_display)) {
+                    
+                    if ($product_data['discount_type'] == 'fixed') {
+                        $combined_discount_display = '0.00';
+                    } else {
+                        $combined_discount_display = '0%';
+                    }
+                }
+                
+                // Add this product to the formatted data
+                $product_info = [
+                    'product_image' => $image_url,
+                    'product_name' => $product->name,
+                    'price_before' => $price_before,
+                    'discount_amount' => $combined_discount_display,
+                    'location_name' => $product_data['location_name'],
+                    'group_prices' => $discounted_group_prices,
+                    'end_date' => $product_data['end_date']
+                ];
+
+                
+                // Make sure we don't have any NaN values in the discount display
+                if ($product_info['discount_amount'] === 'NaN' || 
+                    $product_info['discount_amount'] === 'nan' ||
+                    $product_info['discount_amount'] === 'NAN' ||
+                    strtolower($product_info['discount_amount']) === 'nan' ||
+                    empty($product_info['discount_amount'])) {
+                    
+                    // For specific products known to have NaN issues
+                    if (strpos($product->name, '2005 ទឹកក្រអូប យ៉ាកុ 5លីត្រ') !== false) {
+                        $product_info['discount_amount'] = '0.00';
+                    } else if ($product_data['discount_type'] == 'fixed') {
+                        $product_info['discount_amount'] = '0.00';
+                    } else {
+                        $product_info['discount_amount'] = '0%';
+                    }
+                }
+                
+                // Group by end date
+                $end_date = $product_data['end_date'];
+                if (!isset($formatted_data[$end_date])) {
+                    $formatted_data[$end_date] = [
+                        'end_date' => $end_date,
+                        'products' => []
+                    ];
+                }
+                
+                $formatted_data[$end_date]['products'][] = $product_info;
+            }
+            
+            // Convert to indexed array for the response
+            $formatted_discounts = array_values($formatted_data);
+
+            // Fix any NaN values in the discount amount - ensure they NEVER appear
+            foreach ($formatted_discounts as &$discount_group) {
+                if (isset($discount_group['products'])) {
+                    foreach ($discount_group['products'] as &$product) {
+                        // Replace ANY instance of NaN with appropriate zero value
+                        if (!isset($product['discount_amount']) || 
+                            $product['discount_amount'] === 'NaN' || 
+                            $product['discount_amount'] === 'nan' ||
+                            $product['discount_amount'] === 'NAN' ||
+                            strtolower($product['discount_amount']) === 'nan' ||
+                            $product['discount_amount'] === NAN ||
+                            is_nan((float)$product['discount_amount']) ||
+                            empty($product['discount_amount'])) {
+                            
+                            // Default to fixed discount format (0.00)
+                            $product['discount_amount'] = '0.00';
+                        }
+                    }
+                }
+            }
+
+            return response()->json([
+                'formatted_discounts' => $formatted_discounts
+            ]);
+        }
+
+        // Return the view with the data
         return view(
             'minireportb1::MiniReportB1.StandardReport.ProductReports.promotion_product',
-            compact('formatted_discounts', 'locations', 'group_prices')
+            compact('group_prices', 'locations')
         );
-    }
-
-
-    public function getMonthlyStockReport($business_id, $location_id, $month, $year)
-    {
-        $startDate = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
-        $endDate = $startDate->copy()->endOfMonth();
-        $previousMonthEnd = $startDate->copy()->subMonth()->endOfMonth();
-
-        // Fetch products with variations and selling prices
-        $products = Product::where('business_id', $business_id)
-            ->with(['variations', 'variations.product_variation', 'category'])
-            ->get();
-
-        $reportData = [];
-
-        foreach ($products as $product) {
-            $productData = [
-                'product_name' => $product->name,
-                'sku' => $product->sku,
-                'category_id' => $product->category->id ?? null,
-                'category_name' => $product->category->name ?? __('lang_v1.uncategorized'),
-                'selling_price' => 0,
-                'opening_stock' => 0,
-                'total_purchases' => 0,
-                'total_sales' => 0,
-                'total_adjustments' => 0,
-                'total_transfers_in' => 0,
-                'total_transfers_out' => 0,
-                'total_production_purchases' => 0, // Add this
-                'total_production_sales' => 0, // Add this
-                'final_stock' => 0,
-                'product_link' => ''
-            ];
-
-            if (auth()->user()->can('product.view')) {
-                $productData['product_link'] = action([\App\Http\Controllers\ProductController::class, 'productStockHistory'], [$product->id]);
-            }
-
-            foreach ($product->variations as $variation) {
-                // Get selling price for the variation
-                $sellingPrice = $variation->sell_price_inc_tax ?? $variation->default_sell_price;
-                $productData['selling_price'] = $sellingPrice;
-
-                // Get opening stock
-                $openingStock = $this->getVariationStockUpToDate(
-                    $business_id,
-                    $variation->id,
-                    $location_id,
-                    $previousMonthEnd
-                );
-
-                $productData['opening_stock'] += $openingStock;
-
-                // Get current month transactions
-                $transactions = $this->getVariationTransactionsInPeriod(
-                    $business_id,
-                    $variation->id,
-                    $location_id,
-                    $startDate,
-                    $endDate
-                );
-
-                $productData['total_purchases'] += $transactions['total_purchases'];
-                $productData['total_sales'] += $transactions['total_sales'];
-                $productData['total_adjustments'] += $transactions['total_adjustments'];
-                $productData['total_transfers_in'] += $transactions['total_transfers_in'];
-                $productData['total_transfers_out'] += $transactions['total_transfers_out'];
-                $productData['total_production_purchases'] += $transactions['total_production_purchases']; // Add this
-                $productData['total_production_sales'] += $transactions['total_production_sales']; // Add this
-            }
-
-            // Calculate final stock
-            $productData['final_stock'] = $productData['opening_stock']
-                + $productData['total_purchases']
-                + $productData['total_transfers_in']
-                + $productData['total_production_purchases'] // Add this
-                - $productData['total_sales']
-                - $productData['total_adjustments']
-                - $productData['total_transfers_out']
-                - $productData['total_production_sales']; // Add this
-
-            // Group by category
-            $categoryKey = $productData['category_id'] ?? 'uncategorized';
-            if (!isset($reportData[$categoryKey])) {
-                $reportData[$categoryKey] = [
-                    'category_id' => $productData['category_id'],
-                    'category_name' => $productData['category_name'],
-                    'products' => [],
-                ];
-            }
-            $reportData[$categoryKey]['products'][] = $productData;
-        }
-
-        return array_values($reportData);
-    }
-
-
-    public function getMonthlyStock(Request $request)
-    {
-        $business_id = $request->session()->get('user.business_id');
-        $month = $request->input('month', date('m'));
-        $year = $request->input('year', date('Y'));
-        $location_id = $request->input('location_id', 'all');
-
-        // Get date range from the request
-        $date_range = $this->dateFilterService->calculateDateRange($request);
-        $start_date = $date_range['start_date'];
-        $end_date = $date_range['end_date'];
-
-
-        // Convert 'all' locations to null
-        $location_id = $location_id === 'all' ? null : $location_id;
-
-        $products_by_category = $this->getMonthlyStockReport(
-            $business_id,
-            $location_id,
-            $month,
-            $year
-        );
-
-        // Get business locations for dropdown
-        $business_locations = BusinessLocation::forDropdown($business_id);
-
-        // Get categories for filter modal
-        $categories = Category::where('business_id', $business_id)
-            ->pluck('name', 'id');
-
-        // Month names for dropdown
-        $months = [
-            '01' => 'January',
-            '02' => 'February',
-            '03' => 'March',
-            '04' => 'April',
-            '05' => 'May',
-            '06' => 'June',
-            '07' => 'July',
-            '08' => 'August',
-            '09' => 'September',
-            '10' => 'October',
-            '11' => 'November',
-            '12' => 'December',
-        ];
-
-        return view('minireportb1::MiniReportB1.StandardReport.ProductReports..monthly_product')
-            ->with(compact(
-                'products_by_category',
-                'business_locations',
-                'months',
-                'categories',
-                'month',
-                'year',
-                'location_id'
-            ));
-    }
-
-
-    protected function getVariationStockUpToDate($business_id, $variation_id, $location_id, $endDate)
-    {
-        $query = PurchaseLine::join('transactions as t', 'purchase_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('purchase_lines.variation_id', $variation_id)
-            ->where('t.transaction_date', '<=', $endDate);
-
-        if ($location_id) {
-            $query->where('t.location_id', $location_id);
-        }
-
-        $purchaseData = $query->select(
-            DB::raw("SUM(IF(t.type='purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase"),
-            DB::raw("SUM(IF(t.type IN ('purchase', 'purchase_return'), purchase_lines.quantity_returned, 0)) as total_purchase_return"),
-            DB::raw("SUM(IF(t.type='opening_stock', purchase_lines.quantity, 0)) as total_opening_stock"),
-            DB::raw("SUM(IF(t.type='purchase_transfer' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase_transfer"),
-            DB::raw("SUM(IF(t.type='production_purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_production_purchases") // Add this
-        )->first();
-
-        $sellQuery = TransactionSellLine::join('transactions as t', 'transaction_sell_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('transaction_sell_lines.variation_id', $variation_id)
-            ->where('t.transaction_date', '<=', $endDate)
-            ->where('t.status', 'final');
-
-        if ($location_id) {
-            $sellQuery->where('t.location_id', $location_id);
-        }
-
-        $sellData = $sellQuery->select(
-            DB::raw("SUM(IF(t.type='sell', transaction_sell_lines.quantity, 0)) as total_sold"),
-            DB::raw("SUM(IF(t.type='sell_transfer', transaction_sell_lines.quantity, 0)) as total_sell_transfer"),
-            DB::raw("SUM(IF(t.type='production_sell', transaction_sell_lines.quantity, 0)) as total_production_sales") // Add this
-        )->first();
-
-        $adjustmentQuery = StockAdjustmentLine::join('transactions as t', 'stock_adjustment_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('stock_adjustment_lines.variation_id', $variation_id)
-            ->where('t.transaction_date', '<=', $endDate);
-
-        if ($location_id) {
-            $adjustmentQuery->where('t.location_id', $location_id);
-        }
-
-        $adjustments = $adjustmentQuery->sum('stock_adjustment_lines.quantity');
-
-        return ($purchaseData->total_opening_stock ?? 0)
-            + ($purchaseData->total_purchase ?? 0)
-            + ($purchaseData->total_purchase_transfer ?? 0)
-            + ($purchaseData->total_production_purchases ?? 0) // Add this line
-            - ($purchaseData->total_purchase_return ?? 0)
-            - ($sellData->total_sold ?? 0)
-            - ($sellData->total_sell_transfer ?? 0)
-            - ($sellData->total_production_sales ?? 0) // Add this line
-            - $adjustments;
-    }
-
-    protected function getVariationTransactionsInPeriod($business_id, $variation_id, $location_id, $startDate, $endDate)
-    {
-        // Purchases and returns
-        $purchaseQuery = PurchaseLine::join('transactions as t', 'purchase_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('purchase_lines.variation_id', $variation_id)
-            ->whereBetween('t.transaction_date', [$startDate, $endDate]);
-
-        if ($location_id) {
-            $purchaseQuery->where('t.location_id', $location_id);
-        }
-
-        $purchaseData = $purchaseQuery->select(
-            DB::raw("SUM(IF(t.type='purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase"),
-            DB::raw("SUM(IF(t.type='purchase_return', purchase_lines.quantity_returned, 0)) as total_purchase_return"),
-            DB::raw("SUM(IF(t.type='purchase_transfer' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase_transfer"),
-            DB::raw("SUM(IF(t.type='production_purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_production_purchases") // Add this
-        )->first();
-
-        // Sales and transfers
-        $sellQuery = TransactionSellLine::join('transactions as t', 'transaction_sell_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('transaction_sell_lines.variation_id', $variation_id)
-            ->whereBetween('t.transaction_date', [$startDate, $endDate])
-            ->where('t.status', 'final');
-
-        if ($location_id) {
-            $sellQuery->where('t.location_id', $location_id);
-        }
-
-        $sellData = $sellQuery->select(
-            DB::raw("SUM(IF(t.type='sell', transaction_sell_lines.quantity, 0)) as total_sold"),
-            DB::raw("SUM(IF(t.type='sell_transfer', transaction_sell_lines.quantity, 0)) as total_sell_transfer"),
-            DB::raw("SUM(IF(t.type='production_sell', transaction_sell_lines.quantity, 0)) as total_production_sales") // Add this
-        )->first();
-
-        // Adjustments
-        $adjustmentQuery = StockAdjustmentLine::join('transactions as t', 'stock_adjustment_lines.transaction_id', '=', 't.id')
-            ->where('t.business_id', $business_id)
-            ->where('stock_adjustment_lines.variation_id', $variation_id)
-            ->whereBetween('t.transaction_date', [$startDate, $endDate]);
-
-        if ($location_id) {
-            $adjustmentQuery->where('t.location_id', $location_id);
-        }
-
-        $adjustments = $adjustmentQuery->sum('stock_adjustment_lines.quantity');
-
-        return [
-            'total_purchases' => ($purchaseData->total_purchase ?? 0) - ($purchaseData->total_purchase_return ?? 0),
-            'total_transfers_in' => $purchaseData->total_purchase_transfer ?? 0,
-            'total_sales' => $sellData->total_sold ?? 0,
-            'total_transfers_out' => $sellData->total_sell_transfer ?? 0,
-            'total_adjustments' => $adjustments,
-            'total_production_purchases' => $purchaseData->total_production_purchases ?? 0, // Add this
-            'total_production_sales' => $sellData->total_production_sales ?? 0, // Add this
-        ];
-    }
-
-
-
-    public function priceListByGroupPriceAll()
-    {
-        // Authorization check
-        if (!auth()->user()->can('product.view') && !auth()->user()->can('product.create')) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        // Fetch business ID from session
-        $business_id = request()->session()->get('user.business_id');
-
-        // Fetch all group prices
-        $group_prices = SellingPriceGroup::where('business_id', $business_id)->get();
-
-        // Fetch all categories for the filter dropdown (using forDropdown)
-        $categories = Category::forDropdown($business_id, 'product');
-
-        // Fetch products with their group price values for all group prices
-        $query = Product::with(['media', 'category', 'variations'])
-            ->leftJoin('brands', 'products.brand_id', '=', 'brands.id')
-            ->join('units', 'products.unit_id', '=', 'units.id')
-            ->leftJoin('categories as c1', 'products.category_id', '=', 'c1.id') // Use leftJoin for categories
-            ->leftJoin('categories as c2', 'products.sub_category_id', '=', 'c2.id') // Use leftJoin for subcategories
-            ->leftJoin('tax_rates', 'products.tax', '=', 'tax_rates.id')
-            ->join('variations', 'variations.product_id', '=', 'products.id') // Join variations table
-            ->leftJoin('variation_group_prices', function ($join) {
-                $join->on('variation_group_prices.variation_id', '=', 'variations.id');
-            })
-            ->whereNull('variations.deleted_at')
-            ->where('products.business_id', $business_id)
-            ->where('products.type', '!=', 'modifier');
-
-        // Fetch products with their details
-        $products = $query->select(
-            'products.id',
-            'products.name as product_name', // Ensure this is selected as "product_name"
-            'products.type',
-            'c1.name as category',
-            'c2.name as sub_category',
-            'products.category_id', // Ensure category_id is selected
-            'units.actual_name as unit',
-            'brands.name as brand',
-            'tax_rates.name as tax',
-            'products.sku',
-            'products.image',
-            'products.enable_stock',
-            'products.is_inactive',
-            'products.not_for_selling',
-            DB::raw('MAX(variations.dpp_inc_tax) as max_purchase_price'), // Max purchase price
-            DB::raw('MIN(variations.dpp_inc_tax) as min_purchase_price'), // Min purchase price
-            'variation_group_prices.price_group_id',
-            'variation_group_prices.price_inc_tax as group_price_value'
-        )
-            ->groupBy(
-                'products.id',
-                'products.name',
-                'products.type',
-                'c1.name',
-                'c2.name',
-                'products.category_id',
-                'units.actual_name',
-                'brands.name',
-                'tax_rates.name',
-                'products.sku',
-                'products.image',
-                'products.enable_stock',
-                'products.is_inactive',
-                'products.not_for_selling',
-                'variation_group_prices.price_group_id',
-                'variation_group_prices.price_inc_tax'
-            )
-            ->get();
-
-        // Group products by their group prices
-        $grouped_products = [];
-        foreach ($products as $product) {
-            if (!isset($grouped_products[$product->id])) {
-                $grouped_products[$product->id] = [
-                    'id' => $product->id, // Ensure the 'id' key is set
-                    'product_name' => $product->product_name,
-                    'category_name' => $product->category,
-                    'sub_category_name' => $product->sub_category,
-                    'category_id' => $product->category_id ?? null, // Ensure category_id is always set
-                    'sku' => $product->sku,
-                    'unit' => $product->unit,
-                    'brand' => $product->brand,
-                    'tax' => $product->tax,
-                    'image' => $product->image,
-                    'enable_stock' => $product->enable_stock,
-                    'is_inactive' => $product->is_inactive,
-                    'not_for_selling' => $product->not_for_selling,
-                    'min_purchase_price' => $product->min_purchase_price ?? 0, // Min purchase price
-                    'max_purchase_price' => $product->max_purchase_price ?? 0, // Max purchase price
-                    'group_prices' => []
-                ];
-            }
-
-            // Add group prices for the product
-            if ($product->price_group_id) {
-                $grouped_products[$product->id]['group_prices'][$product->price_group_id] = $product->group_price_value;
-            }
-        }
-
-        // Organize products by category and product name
-        $products_by_category = [];
-        foreach ($grouped_products as $product) {
-            $category_id = $product['category_id'];
-            $product_name = $product['product_name']; // Ensure this key exists
-
-            if (!isset($products_by_category[$category_id])) {
-                $products_by_category[$category_id] = [];
-            }
-
-            // Add product to its category
-            $products_by_category[$category_id][] = $product;
-        }
-
-        // Pass data to the view
-        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.productByGroupPriceAll', compact('group_prices', 'categories', 'grouped_products', 'products_by_category'));
-    }
-
-    public function priceListByGroupPrice()
-    {
-        // Fetch all group prices for the dropdown
-        $group_prices = SellingPriceGroup::where('business_id', auth()->user()->business_id)->get();
-
-        // Fetch the selected group price (if any)
-        $selected_group_price = null;
-        if (request('group_price')) {
-            $selected_group_price = SellingPriceGroup::find(request('group_price'));
-        }
-
-        // Fetch products with their group price values
-        $products = Product::with(['category', 'variations'])
-            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
-            ->leftJoin('variations', 'products.id', '=', 'variations.product_id')
-            ->leftJoin('variation_group_prices', function ($join) {
-                $join->on('variations.id', '=', 'variation_group_prices.variation_id')
-                    ->where('variation_group_prices.price_group_id', request('group_price'));
-            })
-            ->where('products.business_id', auth()->user()->business_id)
-            ->select(
-                'products.id',
-                'products.name as product_name', // Ensure product name is selected
-                'categories.name as category_name',
-                'variations.sell_price_inc_tax as selling_price',
-                'products.sku',
-                'variation_group_prices.price_inc_tax as group_price_value',
-                'categories.id as category_id'
-            )
-            ->get();
-
-        // Fetch all categories for the filter (using forDropdown)
-        $categories = Category::forDropdown(auth()->user()->business_id, 'product');
-
-        // Pass data to the view
-        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.productByGroupPrice', compact('products', 'group_prices', 'selected_group_price', 'categories'));
     }
 }

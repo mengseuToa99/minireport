@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', __('lang_v1.payment_accounts'))
+@section('title', 'តារាងតុល្យការ (Balance Sheet)')
 @section('content')
 <!-- Content Header (Page header) -->
 <section class="content-header">
-    <h1 class="tw-text-xl md:tw-text-3xl tw-font-bold tw-text-black">@lang('lang_v1.payment_accounts')
-        <small class="tw-text-sm md:tw-text-base tw-text-gray-700 tw-font-semibold">@lang('account.manage_your_account')</small>
+    <h1 class="tw-text-xl md:tw-text-3xl tw-font-bold tw-text-black">តារាងតុល្យការ (Balance Sheet)
+        <small class="tw-text-sm md:tw-text-base tw-text-gray-700 tw-font-semibold">គ្រប់គ្រងគណនីរបស់អ្នក (Manage Your Accounts)</small>
     </h1>
 </section>
 
@@ -16,7 +16,7 @@
             <div class="alert alert-danger">
                 <ul>
                     <li>{!! __('account.payments_not_linked_with_account', ['payments' => $not_linked_payments]) !!} 
-                        <a href="{{ action([\App\Http\Controllers\AccountReportsController::class, 'paymentAccountReport']) }}">@lang('account.view_details')</a>
+                        <a href="{{ action([\App\Http\Controllers\AccountReportsController::class, 'paymentAccountReport']) }}">មើលពត៌មានលម្អិត (View Details)</a>
                     </li>
                 </ul>
             </div>
@@ -37,7 +37,7 @@
                                 <div class="col-md-4">
                                     {!! Form::select(
                                         'account_status',
-                                        ['active' => __('business.is_active'), 'closed' => __('account.closed')],
+                                        ['active' => 'សកម្ម (Active)', 'closed' => 'បានបិទ (Closed)'],
                                         null,
                                         ['class' => 'form-control select2', 'style' => 'width:100%', 'id' => 'account_status'],
                                     ) !!}
@@ -52,7 +52,7 @@
                                             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                                             <path d="M12 5l0 14" />
                                             <path d="M5 12l14 0" />
-                                        </svg> @lang('messages.add')
+                                        </svg> បន្ថែម (Add)
                                     </button>
                                 </div>
                             </div>
@@ -63,21 +63,21 @@
                                         <thead>
                                             <tr>
                                                 <th>#</th>
-                                                <th>@lang('account.account_number')</th>
-                                                <th>@lang('lang_v1.name')</th>
-                                                <th>@lang('account.account_detail_type')</th>
-                                                <th>@lang('lang_v1.account_sub_type')</th>
-                                                <th>@lang('lang_v1.account_type')</th>
-                                                <th>@lang('brand.description')</th>
-                                                <th>@lang('lang_v1.balance')</th>
-                                                <th>@lang('lang_v1.account_details')</th>
-                                                <th>@lang('lang_v1.added_by')</th>
-                                                <th>@lang('messages.action')</th>
+                                                <th>លេខគណនី (Account Number)</th>
+                                                <th>ឈ្មោះ (Name)</th>
+                                                <th>ប្រភេទគណនីលម្អិត (Account Detail Type)</th>
+                                                <th>ប្រភេទគណនីរង (Account Sub Type)</th>
+                                                <th>ប្រភេទគណនី (Account Type)</th>
+                                                <th>ការពិពណ៌នា (Description)</th>
+                                                <th>សមតុល្យ (Balance)</th>
+                                                <th>ព័ត៌មានលម្អិតគណនី (Account Details)</th>
+                                                <th>បន្ថែមដោយ (Added By)</th>
+                                                <th>សកម្មភាព (Action)</th>
                                             </tr>
                                         </thead>
                                         <tfoot>
                                             <tr class="bg-gray font-17 footer-total text-center">
-                                                <td colspan="5"><strong>@lang('sale.total'):</strong></td>
+                                                <td colspan="5"><strong>សរុប (Total):</strong></td>
                                                 <td class="footer_total_balance"></td>
                                                 <td colspan="3"></td>
                                             </tr>
@@ -148,10 +148,10 @@
                     <table class="table table-bordered table-striped">
                         <tr>
                             <td colspan="10" class="text-center">
-                                <h3>@lang('account::lang.no_accounts')</h3>
-                                <p>@lang('account::lang.add_default_accounts_help')</p>
+                                <h3>មិនមានគណនីទេ (No Accounts)</h3>
+                                <p>ជំនួយក្នុងការបន្ថែមគណនីលំនាំដើម (Add Default Accounts Help)</p>
                                 <a href="{{ route('account.create-default-accounts') }}" class="tw-dw-btn tw-dw-btn-xs tw-dw-btn-outline tw-dw-btn-accent">
-                                    @lang('account::lang.add_default_accounts') <i class="fas fa-file-import"></i>
+                                    បន្ថែមគណនីលំនាំដើម (Add Default Accounts) <i class="fas fa-file-import"></i>
                                 </a>
                             </td>
                         </tr>
@@ -195,197 +195,68 @@
                             }
                         },
                         error: function(xhr) {
-                            toastr.error(xhr.responseJSON.message || 'An error occurred.');
+                            toastr.error(xhr.responseJSON.message || 'មានកំហុសកើតឡើង (An error occurred).');
                         }
                     });
                 }
             });
         });
 
-        // Edit Payment Account Form Submission
-        $(document).on('submit', 'form#edit_payment_account_form', function(e) {
-            e.preventDefault();
-            const data = $(this).serialize();
-            $.ajax({
-                method: "POST",
-                url: $(this).attr("action"),
-                dataType: "json",
-                data: data,
-                success: function(result) {
-                    if (result.success) {
-                        $('div.account_model').modal('hide');
-                        toastr.success(result.msg);
-                        capital_account_table.ajax.reload();
-                        other_account_table.ajax.reload();
-                        table.ajax.reload();
-                    } else {
-                        toastr.error(result.msg);
-                    }
-                },
-                error: function(xhr) {
-                    toastr.error(xhr.responseJSON.message || 'An error occurred.');
-                }
-            });
-        });
-
-
-
-        $(document).on('shown.bs.modal', '.account_model', function() {
-            $(this).find('#account_sub_type').select2({
-                dropdownParent: $('.account_model')
-            });
-            $(this).find('#detail_type').select2({
-                dropdownParent: $('.account_model')
-            });
-            $(this).find('#parent_account').select2({
-                dropdownParent: $('.account_model')
-            });
-            $('#as_of').datepicker({
-                autoclose: true,
-                endDate: 'today',
-            });
-            init_tinymce('description');
-        });
-        $(document).on('change', '#account_primary_type', function() {
-            if ($(this).val() !== '') {
-                $.ajax({
-                    url: '/account/get-account-sub-types?account_primary_type=' + $(this).val(),
-                    dataType: 'json',
-                    success: function(result) {
-                        $('#account_sub_type').select2('destroy')
-                            .empty()
-                            .select2({
-                                data: result.sub_types,
-                                dropdownParent: $('.account_model'),
-                            }).on('change', function() {
-                                if ($(this).select2('data')[0].show_balance == 1) {
-                                    $('#bal_div').removeClass('hide');
-                                } else {
-                                    $('#bal_div').addClass('hide');
-                                }
-                            });
-                        $('#account_sub_type').change();
-                    },
-                });
-            }
-        });
-        $(document).on('change', '#account_sub_type', function() {
-            if ($(this).val() !== '') {
-                $.ajax({
-                    url: '/account/get-account-details-types?account_type_id=' + $(this).val(),
-                    dataType: 'json',
-                    success: function(result) {
-                        $('#detail_type').select2('destroy')
-                            .empty()
-                            .select2({
-                                data: result.detail_types,
-                                dropdownParent: $('.account_model'),
-                            }).on('change', function() {
-                                if ($(this).val() !== '') {
-                                    var desc = $(this).select2('data')[0].description;
-                                    $('#detail_type_desc').html(desc);
-                                }
-                            });
-                        $('#parent_account').select2('destroy')
-                            .empty()
-                            .select2({
-                                data: result.parent_accounts,
-                                dropdownParent: $('.account_model'),
-                            });
-                    },
-                });
-            }
-        })
-
-        // Payment Account Form Submission
-        $(document).on('submit', 'form#payment_account_form', function(e) {
-            e.preventDefault();
-            const data = $(this).serialize();
-            $.ajax({
-                method: "POST",
-                url: $(this).attr("action"),
-                dataType: "json",
-                data: data,
-                success: function(result) {
-                    if (result.success) {
-                        $('div.account_model').modal('hide');
-                        toastr.success(result.msg);
-                        capital_account_table.ajax.reload();
-                        other_account_table.ajax.reload();
-                        table.ajax.reload();
-                    } else {
-                        toastr.error(result.msg);
-                    }
-                },
-                error: function(xhr) {
-                    toastr.error(xhr.responseJSON.message || 'An error occurred.');
-                }
-            });
-        });
-
-
-        
-
         // Account Status Change Event
-        $('#account_status').change(function() {
+        $(document).on('change', '#account_status', function() {
             other_account_table.ajax.reload();
-
         });
 
-        // Deposit Form Submission
-        $(document).on('submit', 'form#deposit_form', function(e) {
-            e.preventDefault();
-            const data = $(this).serialize();
-            $.ajax({
-                method: "POST",
-                url: $(this).attr("action"),
-                dataType: "json",
-                data: data,
-                success: function(result) {
-                    if (result.success) {
-                        $('div.view_modal').modal('hide');
-                        toastr.success(result.msg);
-                        capital_account_table.ajax.reload();
-                        other_account_table.ajax.reload();
-                        table.ajax.reload();
-                    } else {
-                        toastr.error(result.msg);
-                    }
-                },
-                error: function(xhr) {
-                    toastr.error(xhr.responseJSON.message || 'An error occurred.');
-                }
-            });
-        });
-
-        // Activate Account Confirmation
-        $(document).on('click', 'button.activate_account', function() {
+        // Delete Account Confirmation
+        $(document).on('click', 'button.delete_account_button', function() {
             swal({
                 title: LANG.sure,
                 icon: "warning",
                 buttons: true,
                 dangerMode: true,
-            }).then((willActivate) => {
-                if (willActivate) {
-                    const url = $(this).data('url');
+            }).then((willDelete) => {
+                if (willDelete) {
+                    const href = $(this).data('href');
+                    const data = $(this).serialize();
                     $.ajax({
-                        method: "GET",
-                        url: url,
+                        method: "DELETE",
+                        url: href,
                         dataType: "json",
+                        data: data,
                         success: function(result) {
                             if (result.success) {
                                 toastr.success(result.msg);
-                                capital_account_table.ajax.reload();
                                 other_account_table.ajax.reload();
                             } else {
                                 toastr.error(result.msg);
                             }
-                        },
-                        error: function(xhr) {
-                            toastr.error(xhr.responseJSON.message || 'An error occurred.');
                         }
                     });
                 }
+            });
+        });
+
+        // On Modal Show Add/Edit Account
+        $('.account_model').on('shown.bs.modal', function(e) {
+            $('form#add_account').submit(function(e) {
+                e.preventDefault();
+                const form = $(this);
+                const data = form.serialize();
+                $.ajax({
+                    method: form.attr('method'),
+                    url: form.attr('action'),
+                    dataType: 'json',
+                    data: data,
+                    success: function(result) {
+                        if (result.success) {
+                            $('div.account_model').modal('hide');
+                            toastr.success(result.msg);
+                            other_account_table.ajax.reload();
+                        } else {
+                            toastr.error(result.msg);
+                        }
+                    }
+                });
             });
         });
     });

@@ -11,7 +11,6 @@
 
 @section('content')
 
-    <div class="arrow" id="goBackButton"></div>
 
     <div style="margin: 16px">
         @component('components.filters', ['title' => __('report.filters')])

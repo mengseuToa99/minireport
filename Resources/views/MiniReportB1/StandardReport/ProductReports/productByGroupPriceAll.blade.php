@@ -3,6 +3,8 @@
 @section('title', 'Products by Group Price')
 
 <link rel="stylesheet" href="{{ asset('modules/minireportb1/css/reusable-table.css') }}">
+@include('minireportb1::MiniReportB1.components.linkforinclude')
+
 
 @section('css')
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -104,10 +106,10 @@
 
 @section('content')
     <meta name="csrf-token" content="{{ csrf_token() }}">
+@include("minireportb1::MiniReportB1.components.back_to_dashboard_button")
 
-    <div class="arrow" id="goBackButton"></div>
 
-    <div style="margin: 16px;">
+    <div style="margin: 16px;" class="no-print">
         @component('components.filters', ['title' => __('report.filters')])
             <div id="filter-container" class="filter-container"> 
                 <div class="button-group">
@@ -118,7 +120,8 @@
                         <i class="fas fa-eye"></i> តម្លៃតាមក្រុម
                     </button>
                 </div>
-                @include('minireportb1::MiniReportB1.components.filter', ['hideDateFilter' => true])
+                @include('minireportb1::MiniReportB1.components.printbutton')
+
             </div>
         @endcomponent
     </div>
@@ -136,7 +139,7 @@
                     <th class="col-xs">#</th>
                     <th class="col-sm">ឈ្មោះទំនិញ</th>
                     <th class="col-category">ក្រុមទំនិញ</th>
-                    <th class="col-selling-price">តម្លៃដើម</th>
+                    <th class="col-selling-price">តម្លៃដើម</th> <!-- Add class here -->
                     <th class="col-sku">SKU</th>
                     @foreach ($group_prices as $group_price)
                         <th class="col-group-price" data-group-price-id="{{ $group_price->id }}">{{ $group_price->name }}</th>
@@ -149,7 +152,7 @@
                         <td class="col-no">{{ $loop->iteration }}</td>
                         <td>{{ $product['product_name'] }}</td>
                         <td>{{ $product['category_name'] }}</td>
-                        <td class="number">{{ number_format($product['max_purchase_price'], 2) }}</td>
+                        <td class="col-selling-price number">{{ number_format($product['max_purchase_price'], 2) }}</td> <!-- Add class here -->
                         <td>{{ $product['sku'] }}</td>
                         @foreach ($group_prices as $group_price)
                             <td class="number">
@@ -213,160 +216,205 @@
     </div>
 
     <!-- Group Price Columns Modal -->
-    <div class="modal fade" id="groupPriceColumnsModal" tabindex="-1" role="dialog" aria-labelledby="groupPriceColumnsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="groupPriceColumnsModalLabel">Select Group Price Columns to Display</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
-                    </button>
+<!-- Group Price Columns Modal -->
+<div class="modal fade" id="groupPriceColumnsModal" tabindex="-1" role="dialog" aria-labelledby="groupPriceColumnsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="groupPriceColumnsModalLabel">Select Columns to Display</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Checkbox for "តម្លៃដើម" -->
+                <div class="form-check">
+                    <input class="form-check-input group-price-checkbox" type="checkbox" value="original_price"
+                        id="originalPriceColumn" checked style="transform: scale(3);">
+                    <label class="form-check-label" for="originalPriceColumn" style="margin-left: 16px; margin-top:8px">
+                        តម្លៃដើម
+                    </label>
                 </div>
-                <div class="modal-body">
-                    @foreach ($group_prices as $group_price)
-                        <div class="form-check">
-                            <input class="form-check-input group-price-checkbox" type="checkbox" value="{{ $group_price->id }}"
-                                id="groupPrice{{ $group_price->id }}" checked style="transform: scale(3);">
-                            <label class="form-check-label" for="groupPrice{{ $group_price->id }}" style="margin-left: 16px; margin-top:8px">
-                                {{ $group_price->name }}
-                            </label>
-                        </div>
-                    @endforeach
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllGroupPrices">Select All</button>
-                    <button type="button" class="btn btn-sm btn-outline-danger" id="unselectAllGroupPrices">Unselect All</button>
-                    <button type="button" class="btn btn-primary" id="applyGroupPriceColumns">Apply</button>
-                </div>
+
+                <!-- Checkboxes for Group Prices -->
+                @foreach ($group_prices as $group_price)
+                    <div class="form-check">
+                        <input class="form-check-input group-price-checkbox" type="checkbox" value="{{ $group_price->id }}"
+                            id="groupPrice{{ $group_price->id }}" checked style="transform: scale(3);">
+                        <label class="form-check-label" for="groupPrice{{ $group_price->id }}" style="margin-left: 16px; margin-top:8px">
+                            {{ $group_price->name }}
+                        </label>
+                    </div>
+                @endforeach
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllGroupPrices">Select All</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="unselectAllGroupPrices">Unselect All</button>
+                <button type="button" class="btn btn-primary" id="applyGroupPriceColumns">Apply</button>
             </div>
         </div>
     </div>
+</div>
 @endsection
 
 @section('javascript')
     <script>
         const tablename = "#productgrouppriceall";
         const reportname = " តារាងតម្លៃរួមតាមក្រុមថ្លៃ";
+        
+        // Function to update row numbers
+        function updateRowNumbers() {
+            let counter = 1;
+            document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    row.cells[0].textContent = counter++;
+                }
+            });
+        }
 
         document.addEventListener('DOMContentLoaded', function () {
-            // Toggle Group Price Columns
-            document.getElementById('toggleGroupPriceColumns')?.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                $('#groupPriceColumnsModal').modal('show');
-            });
+    // Toggle Group Price Columns
+    document.getElementById('toggleGroupPriceColumns')?.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $('#groupPriceColumnsModal').modal('show');
+    });
 
-            // Handle Group Price Column Selection
-            document.getElementById('applyGroupPriceColumns')?.addEventListener('click', function () {
-                const selectedGroupPrices = Array.from(document.querySelectorAll('.group-price-checkbox:checked')).map(
-                    checkbox => checkbox.value
-                );
-
-                document.querySelectorAll('.col-group-price').forEach(column => {
-                    const groupPriceId = column.getAttribute('data-group-price-id');
-                    const columnIndex = Array.from(column.parentElement.children).indexOf(column) + 1;
-
-                    if (selectedGroupPrices.includes(groupPriceId)) {
-                        column.style.display = 'table-cell';
-                        document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
-                            const dataCell = row.querySelector(`td:nth-child(${columnIndex})`);
-                            if (dataCell) dataCell.style.display = 'table-cell';
-                        });
-                    } else {
-                        column.style.display = 'none';
-                        document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
-                            const dataCell = row.querySelector(`td:nth-child(${columnIndex})`);
-                            if (dataCell) dataCell.style.display = 'none';
-                        });
-                    }
-                });
-
-                $('#groupPriceColumnsModal').modal('hide');
-            });
-
-            // Select All Group Prices
-            document.getElementById('selectAllGroupPrices')?.addEventListener('click', function () {
-                document.querySelectorAll('.group-price-checkbox').forEach(checkbox => {
-                    checkbox.checked = true;
-                });
-            });
-
-            // Unselect All Group Prices
-            document.getElementById('unselectAllGroupPrices')?.addEventListener('click', function () {
-                document.querySelectorAll('.group-price-checkbox').forEach(checkbox => {
-                    checkbox.checked = false;
-                });
-            });
-
-            // Unselect all checkboxes by default
-            document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-
-            // Show/hide products when a category checkbox is clicked
-            document.querySelectorAll('.category-checkbox').forEach(categoryCheckbox => {
-                categoryCheckbox.addEventListener('change', function () {
-                    const categoryId = this.value;
-                    const productGroup = document.getElementById(`productsForCategory${categoryId}`);
-                    if (this.checked) {
-                        productGroup.style.display = 'block';
-                    } else {
-                        productGroup.style.display = 'none';
-                        document.querySelectorAll(`.product-checkbox[data-category-id="${categoryId}"]`).forEach(
-                            productCheckbox => {
-                                productCheckbox.checked = false;
-                            });
-                    }
-                });
-            });
-
-            // Select all categories and products
-            document.getElementById('selectAllCategories')?.addEventListener('click', function () {
-                document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
-                    checkbox.checked = true;
-                    const categoryId = checkbox.value;
-                    const productGroup = document.getElementById(`productsForCategory${categoryId}`);
-                    if (productGroup) productGroup.style.display = 'block';
-                });
-            });
-
-            // Unselect all categories and products
-            document.getElementById('unselectAllCategories')?.addEventListener('click', function () {
-                document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
-                    checkbox.checked = false;
-                    const categoryId = checkbox.value;
-                    const productGroup = document.getElementById(`productsForCategory${categoryId}`);
-                    if (productGroup) productGroup.style.display = 'none';
-                });
-            });
-
-            // Apply filters
-            document.getElementById('applyCategoryFilter')?.addEventListener('click', function () {
-                const selectedCategories = Array.from(document.querySelectorAll('.category-checkbox:checked')).map(
-                    checkbox => checkbox.value
-                );
-                const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked')).map(
-                    checkbox => checkbox.value
-                );
-
-                document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
-                    const categoryId = row.getAttribute('data-category-id');
-                    const productName = row.getAttribute('data-product-name');
-
-                    if (
-                        (selectedCategories.length === 0 || selectedCategories.includes(categoryId)) &&
-                        (selectedProducts.length === 0 || selectedProducts.includes(productName))
-                    ) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-
-                $('#categoryModal').modal('hide');
-            });
+    // Handle Column Selection
+    document.getElementById('applyGroupPriceColumns')?.addEventListener('click', function () {
+        // Toggle "តម្លៃដើម" column
+        const showOriginalPrice = document.getElementById('originalPriceColumn').checked;
+        document.querySelectorAll('.col-selling-price').forEach(column => {
+            column.style.display = showOriginalPrice ? 'table-cell' : 'none';
         });
+
+        // Toggle Group Price Columns
+        const selectedGroupPrices = Array.from(document.querySelectorAll('.group-price-checkbox:checked')).map(
+            checkbox => checkbox.value
+        );
+
+        document.querySelectorAll('.col-group-price').forEach(column => {
+            const groupPriceId = column.getAttribute('data-group-price-id');
+            const columnIndex = Array.from(column.parentElement.children).indexOf(column) + 1;
+
+            if (selectedGroupPrices.includes(groupPriceId)) {
+                column.style.display = 'table-cell';
+                document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
+                    const dataCell = row.querySelector(`td:nth-child(${columnIndex})`);
+                    if (dataCell) dataCell.style.display = 'table-cell';
+                });
+            } else {
+                column.style.display = 'none';
+                document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
+                    const dataCell = row.querySelector(`td:nth-child(${columnIndex})`);
+                    if (dataCell) dataCell.style.display = 'none';
+                });
+            }
+        });
+        
+        // Update row numbers after changing column visibility
+        updateRowNumbers();
+
+        $('#groupPriceColumnsModal').modal('hide');
+    });
+
+    // Select All Group Prices and Original Price
+    document.getElementById('selectAllGroupPrices')?.addEventListener('click', function () {
+        document.querySelectorAll('.group-price-checkbox, #originalPriceColumn').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    });
+
+    // Unselect All Group Prices and Original Price
+    document.getElementById('unselectAllGroupPrices')?.addEventListener('click', function () {
+        document.querySelectorAll('.group-price-checkbox, #originalPriceColumn').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    });
+
+    // Unselect all checkboxes by default
+    document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    // Show/hide products when a category checkbox is clicked
+    document.querySelectorAll('.category-checkbox').forEach(categoryCheckbox => {
+        categoryCheckbox.addEventListener('change', function () {
+            const categoryId = this.value;
+            const productGroup = document.getElementById(`productsForCategory${categoryId}`);
+            if (this.checked) {
+                productGroup.style.display = 'block';
+            } else {
+                productGroup.style.display = 'none';
+                document.querySelectorAll(`.product-checkbox[data-category-id="${categoryId}"]`).forEach(
+                    productCheckbox => {
+                        productCheckbox.checked = false;
+                    });
+            }
+        });
+    });
+
+    // Select all categories and products
+    document.getElementById('selectAllCategories')?.addEventListener('click', function () {
+        document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
+            checkbox.checked = true;
+            const categoryId = checkbox.value;
+            const productGroup = document.getElementById(`productsForCategory${categoryId}`);
+            if (productGroup) productGroup.style.display = 'block';
+        });
+    });
+
+    // Unselect all categories and products
+    document.getElementById('unselectAllCategories')?.addEventListener('click', function () {
+        document.querySelectorAll('.category-checkbox, .product-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+            const categoryId = checkbox.value;
+            const productGroup = document.getElementById(`productzsForCategory${categoryId}`);
+            if (productGroup) productGroup.style.display = 'none';
+        });
+    });
+
+    // Apply filters
+    document.getElementById('applyCategoryFilter')?.addEventListener('click', function () {
+        const selectedCategories = Array.from(document.querySelectorAll('.category-checkbox:checked')).map(
+            checkbox => checkbox.value
+        );
+        const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked')).map(
+            checkbox => checkbox.value
+        );
+
+        document.querySelectorAll('#productgrouppriceall tbody tr').forEach(row => {
+            const categoryId = row.getAttribute('data-category-id');
+            const productName = row.getAttribute('data-product-name');
+
+            if (
+                (selectedCategories.length === 0 || selectedCategories.includes(categoryId)) &&
+                (selectedProducts.length === 0 || selectedProducts.includes(productName))
+            ) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        updateRowNumbers();
+
+        $('#categoryModal').modal('hide');
+    });
+
+    // Run initially to ensure correct numbering
+    updateRowNumbers();
+    
+    // Handle printing - make sure row numbers are correct
+    const printButton = document.getElementById('print-button');
+    if (printButton) {
+        printButton.addEventListener('click', function() {
+            // Ensure row numbers are correctly set before printing
+            updateRowNumbers();
+        }, true); // Using capture phase to run before other handlers
+    }
+});
     </script>
     <script src="{{ asset('modules/minireportb1/js/print.js') }}"></script>
 @endsection

@@ -1,0 +1,67 @@
+/* 
+ * Print styling for MiniReportB1 module
+ */
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .page-break {
+        page-break-after: always;
+    }
+    
+    body {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+    }
+    
+    .language-switcher,
+    .language-indicator {
+        display: none !important;
+    }
+}
+
+/* Print layout elements */
+.print-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.print-logo {
+    max-width: 150px;
+    height: auto;
+}
+
+.print-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.print-date {
+    font-size: 12px;
+    margin-bottom: 15px;
+}
+
+.print-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.print-table th,
+.print-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.print-table th {
+    background-color: #f2f2f2;
+    text-align: left;
+}
+
+.print-footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 12px;
+} 

@@ -18,7 +18,7 @@
                     <!-- Dashboard link -->
                     <li @if(request()->segment(2) == 'MiniReportB1') class="active" @endif>
                         <a href="{{action([\Modules\MiniReportB1\Http\Controllers\MiniReportB1Controller::class, 'index'])}}">
-                            @lang("minireportb1::lang.minireportb1")
+                            @lang("minireportb1::minireportb1.MiniReportB1")
                         </a>
                     </li>
 

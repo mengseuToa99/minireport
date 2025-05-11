@@ -37,7 +37,7 @@
                     <div class="col-md-6 report-item" data-title="Employee Contact List">
                         <div class="report-box">
                             <a href="{{ route('mini_monthly_stock') }}" class="report-link">
-                                <span>របាយការណ៍ស្តុកប្រចាំខែ</span>
+                                <span>@lang('minireportb1::minireportb1.monthly_stock_report')</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>

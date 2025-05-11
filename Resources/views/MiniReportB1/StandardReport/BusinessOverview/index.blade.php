@@ -1,20 +1,56 @@
 <!-- Business Overview Section -->
 @component('components.widget', ['class' => 'box-solid'])
-    <div class="section-header" onclick="toggleSection('businessOverviewSection')">
-        <i class="fas fa-chevron-down"></i> Business Overview
+    <div class="section-header" onclick="toggleSection('businessOverviewSection1')">
+        <i class="fas fa-chevron-down"></i> ទិដ្ឋភាពអាជីវកម្ម (Business Overview)
     </div>
-    <div id="businessOverviewSection">
+    <div id="businessOverviewSection1">
+
+        <!-- Add this button to your Business Overview section -->
+        {{-- <div class="col-md-6 report-item" data-title="Print All Reports">
+            <div class="report-box">
+                <a href="javascript:void(0);" onclick="printAllReports()" class="report-link">
+                    <span><i class="fas fa-print"></i> បោះពុម្ពរបាយការណ៍ទាំងអស់ (Print All Reports)</span>
+                </a>
+                <div class="icons">
+                    <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                    <i class="fas fa-ellipsis-v"></i>
+                </div>
+            </div>
+        </div> --}}
 
         <table class="table">
             <tr>
-                <!-- Column 1 (40%) -->
+                <!-- Column 1 (80%) -->
                 <td style="width: 80%;">
 
+                <div class="col-md-6 report-item" data-title="Bankbook">
+                        <div class="report-box">
+                            <a href="{{ route('sr_bankbook') }}" class="report-link">
+                                <span>សៀវភៅធនាគារ (Bankbook)</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
 
-                    <div class="col-md-6 report-item" data-title="Employee Contact List">
+                    <div class="col-md-6 report-item" data-title="Bank Reconciliation">
+                        <div class="report-box">
+                            <a href="{{ route('sr_bank_reconciliation') }}" class="report-link">
+                                <span>ផ្ទៀងផ្ទាត់សាច់ប្រាក់​ធនាគារ (Bank Reconciliation) just-layout</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 report-item" data-title="Expense For Month">
                         <div class="report-box">
                             <a href="{{ route('sr_exspend_month') }}" class="report-link">
-                                <span>Exspend For Month</span>
+                                <span>ចំណាយប្រចាំខែ (Expense For Month)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -23,10 +59,10 @@
                         </div>
                     </div>
 
-                    <div class="col-md-6 report-item" data-title="Employee Contact List">
+                    <div class="col-md-6 report-item" data-title="Income For Month">
                         <div class="report-box">
                             <a href="{{ route('sr_income_month') }}" class="report-link">
-                                <span>Income For Month</span>
+                                <span>ចំណូលប្រចាំខែ (Income For Month)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -36,11 +72,11 @@
                     </div>
 
 
-                    <div class="col-md-6 report-item" data-title="Balance Sheet">
+                    <div class="col-md-6 report-item" data-title="Period Income Statement">
                         <div class="report-box">
                             <a href="{{ route('sr_period_income_statment') }}" class="report-link"
                                 style="text-decoration: none;">
-                                <span> Period Income Statement </span>
+                                <span>របាយការណ៍ចំណូលតាមរយៈពេល (Period Income Statement)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-success" onclick="toggleFavorite(this)"></i>
@@ -48,11 +84,10 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 report-item" data-title="Balance Sheet">
+                    <div class="col-md-6 report-item" data-title="Yearly Income Statement">
                         <div class="report-box">
-                            <a href="{{ route('sr_income_statment') }}" class="report-link"
-                                style="text-decoration: none;">
-                                <span> Yearly Income Statement </span>
+                            <a href="{{ route('sr_income_statment') }}" class="report-link" style="text-decoration: none;">
+                                <span>របាយការណ៍ចំណូលប្រចាំឆ្នាំ (Yearly Income Statement)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-success" onclick="toggleFavorite(this)"></i>
@@ -60,11 +95,11 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 report-item" data-title="Balance Sheet">
+                    <div class="col-md-6 report-item" data-title="Financial Position">
                         <div class="report-box">
                             <a href="{{ route('sr_financial_position_quickbooks') }}" class="report-link"
                                 style="text-decoration: none;">
-                                <span>Financial Position</span>
+                                <span>ស្ថានភាពហិរញ្ញវត្ថុ (Financial Position)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-success" onclick="toggleFavorite(this)"></i>
@@ -74,9 +109,8 @@
                     </div>
                     <div class="col-md-6 report-item" data-title="Balance Sheet">
                         <div class="report-box">
-                            <a href="{{ route('sr_balanceSheet') }}" class="report-link"
-                                style="text-decoration: none;">
-                                <span>Balance Sheet</span>
+                            <a href="{{ route('sr_balanceSheet') }}" class="report-link" style="text-decoration: none;">
+                                <span>តារាងតុល្យការ (Balance Sheet)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-success" onclick="toggleFavorite(this)"></i>
@@ -85,11 +119,10 @@
                         </div>
                     </div>
 
-                    <div class="col-md-6 report-item" data-title="Balance Sheet Summary">
+                    <div class="col-md-6 report-item" data-title="Quarterly Report">
                         <div class="report-box">
-                            <a href="{{ route('sr_quarterly_report') }}" class="report-link"
-                                style="text-decoration: none;">
-                                <span>របាយការណ៍លក់ប្រចាំត្រីមាស</span>
+                            <a href="{{ route('sr_quarterly_report') }}" class="report-link" style="text-decoration: none;">
+                                <span>របាយការណ៍លក់ប្រចាំត្រីមាស (Quarterly Sales Report)</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-success" onclick="toggleFavorite(this)"></i>
@@ -125,3 +158,5 @@
         background-repeat: no-repeat;
     }
 </style>
+
+

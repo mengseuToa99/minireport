@@ -59,9 +59,7 @@ class LayoutController extends Controller
                 'success' => true,
                 'message' => 'Layout deleted successfully.'
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Error deleting layout: ' . $e->getMessage());
-            return response()->json([
+        } catch (\Exception $e) {            return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()
             ], 500);
@@ -95,9 +93,7 @@ class LayoutController extends Controller
                 'success' => true,
                 'components' => $components
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching layout components: ' . $e->getMessage());
-            return response()->json([
+        } catch (\Exception $e) {            return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()
             ], 500);
@@ -151,9 +147,7 @@ class LayoutController extends Controller
                 'success' => true,
                 'layouts' => $layouts
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching layouts: ' . $e->getMessage());
-            return response()->json([
+        } catch (\Exception $e) {            return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()
             ], 500);
@@ -221,9 +215,7 @@ class LayoutController extends Controller
                 'message' => 'Layout saved successfully'
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
-            \Log::error('Layout save error: ' . $e->getMessage());
-            return response()->json([
+            DB::rollBack();            return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()
             ], 500);

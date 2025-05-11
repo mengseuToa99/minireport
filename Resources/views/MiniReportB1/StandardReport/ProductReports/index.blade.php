@@ -1,6 +1,6 @@
 @component('components.widget', ['class' => 'box-solid'])
     <div class="section-header" onclick="toggleSection('productSection')">
-        <i class="fas fa-chevron-down"></i> ProductReports
+        <i class="fas fa-chevron-down"></i> រាយការណ៍ផលិតផល
     </div>
     <div class="row report-container" id="productSection">
 
@@ -8,6 +8,58 @@
             <tr>
                 <!-- Column 1 (40%) -->
                 <td style="width: 80%;">
+
+
+                <div class="col-md-6 report-item" data-title="Employee Contact List">
+                        <div class="report-box">
+                            <a href="{{ route('sr_profit_product') }}" class="report-link">
+                                <span>តារាងផលិតផលចំណេញជាភាគរយ</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+                <div class="col-md-6 report-item" data-title="Employee Contact List">
+                        <div class="report-box">
+                            <a href="{{ route('sr_product_sale_report') }}" class="report-link">
+                                <span>របាយការណ៍ការលក់ផលិតផល</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                <div class="col-md-6 report-item" data-title="Employee Contact List">
+                        <div class="report-box">
+                            <a href="{{ route('sr_batch_groupprice') }}" class="report-link">
+                                <span>តារាងតម្លៃផលិតផលជាកេះតាមក្រុមថ្លៃនិងមួយឯកតា</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                <div class="col-md-6 report-item" data-title="Employee Contact List">
+                        <div class="report-box">
+                            <a href="{{ route('sr_pricelist_costgroup') }}" class="report-link">
+                                <span>តារាងតម្លៃផលិតផលជាកេះតាមក្រុមថ្លៃ</span>
+                            </a>
+                            <div class="icons">
+                                <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
+                                <i class="fas fa-ellipsis-v"></i>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="col-md-6 report-item" data-title="Employee Contact List">
                         <div class="report-box">
@@ -73,7 +125,7 @@
                     <div class="col-md-6 report-item" data-title="Employee Contact List">
                         <div class="report-box">
                             <a href="{{ route('sr_cashbook') }}" class="report-link">
-                                <span>Cashbook</span>
+                                <span>សៀវភៅសាច់ប្រាក់</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -97,7 +149,7 @@
                     <div class="col-md-6 report-item" data-title="Employee Contact List">
                         <div class="report-box">
                             <a href="{{ route('sr_expense_list') }}" class="report-link">
-                                <span>Exspend List</span>
+                                <span>បញ្ជីចំណាយ</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -110,7 +162,7 @@
                     <div class="col-md-6 report-item" data-title="Stock Report">
                         <div class="report-box">
                             <a href="{{ route('sr_stock_report') }}" class="report-link">
-                                <span>Stock Report</span>
+                                <span>របាយការណ៍ស្តុក</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -123,7 +175,7 @@
                     <div class="col-md-6 report-item" data-title="Stock Expiry Report">
                         <div class="report-box">
                             <a href="{{ route('sr_stock_expiry') }}" class="report-link">
-                                <span>Stock Expiry Report</span>
+                                <span>របាយការណ៍ស្តុកផុតកំណត់</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -136,7 +188,7 @@
                     <div class="col-md-6 report-item" data-title="Stock Adjustment Report">
                         <div class="report-box">
                             <a href="{{ route('sr_stock_adjustment') }}" class="report-link">
-                                <span>Stock Adjustment Report</span>
+                                <span>របាយការណ៍កែតម្រូវស្តុក</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -149,7 +201,7 @@
                     <div class="col-md-6 report-item" data-title="Trending Products Report">
                         <div class="report-box">
                             <a href="{{ route('sr_trending_products') }}" class="report-link">
-                                <span>Trending Products Report</span>
+                                <span>របាយការណ៍ផលិតផលពេញនិយម</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -162,7 +214,7 @@
                     <div class="col-md-6 report-item" data-title="Items Report">
                         <div class="report-box">
                             <a href="{{ route('sr_itemsReport') }}" class="report-link">
-                                <span>Items Report</span>
+                                <span>របាយការណ៍ទំនិញ</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -175,7 +227,7 @@
                     <div class="col-md-6 report-item" data-title="Product Purchase Report">
                         <div class="report-box">
                             <a href="{{ route('sr_getproductPurchaseReport') }}" class="report-link">
-                                <span>Product Purchase Report</span>
+                                <span>របាយការណ៍ទិញផលិតផល</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -188,7 +240,7 @@
                     <div class="col-md-6 report-item" data-title="Product Sell Report">
                         <div class="report-box">
                             <a href="{{ route('sr_getproductSellReport') }}" class="report-link">
-                                <span>Product Sell Report</span>
+                                <span>របាយការណ៍លក់ផលិតផល</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
@@ -201,7 +253,7 @@
                     <div class="col-md-6 report-item" data-title="Supplier & Customer Report">
                         <div class="report-box">
                             <a href="{{ route('sr_getCustomerSuppliers') }}" class="report-link">
-                                <span>Supplier & Customer Report</span>
+                                <span>របាយការណ៍អ្នកផ្គត់ផ្គង់និងអតិថិជន</span>
                             </a>
                             <div class="icons">
                                 <i class="fas fa-star favorite-icon text-muted" onclick="toggleFavorite(this)"></i>
