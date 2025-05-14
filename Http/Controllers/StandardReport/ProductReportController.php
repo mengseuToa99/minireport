@@ -195,6 +195,268 @@ class ProductReportController extends Controller
         ));
     }
 
+    public function getMonthlyStock(Request $request)
+    {
+        $business_id = $request->session()->get('user.business_id');
+        $month = $request->input('month', date('m'));
+        $year = $request->input('year', date('Y'));
+        $location_id = $request->input('location_id', 'all');
+
+        // Get date range from the request
+        $date_range = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $date_range['start_date'];
+        $end_date = $date_range['end_date'];
+
+        // Convert 'all' locations to null
+        $location_id = $location_id === 'all' ? null : $location_id;
+
+        $products_by_category = $this->getMonthlyStockReport(
+            $business_id,
+            $location_id,
+            $month,
+            $year
+        );
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id);
+
+        // Get categories for filter modal
+        $categories = Category::where('business_id', $business_id)
+            ->pluck('name', 'id');
+
+        // Month names for dropdown
+        $months = [
+            '01' => 'January',
+            '02' => 'February',
+            '03' => 'March',
+            '04' => 'April',
+            '05' => 'May',
+            '06' => 'June',
+            '07' => 'July',
+            '08' => 'August',
+            '09' => 'September',
+            '10' => 'October',
+            '11' => 'November',
+            '12' => 'December',
+        ];
+
+        return view('minireportb1::MiniReportB1.StandardReport.ProductReports.monthly_stock_product')
+            ->with(compact(
+                'products_by_category',
+                'business_locations',
+                'months',
+                'categories',
+                'month',
+                'year',
+                'location_id'
+            ));
+    }
+
+    public function getMonthlyStockReport($business_id, $location_id, $month, $year)
+    {
+        $startDate = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+        $previousMonthEnd = $startDate->copy()->subMonth()->endOfMonth();
+    
+        // Fetch products with variations, selling prices, and units
+        $products = Product::where('business_id', $business_id)
+            ->with(['variations', 'variations.product_variation', 'category', 'unit'])
+            ->get();
+    
+        $reportData = [];
+    
+        foreach ($products as $product) {
+            $productData = [
+                'id' => $product->id,
+                'product_name' => $product->name,
+                'sku' => $product->sku,
+                'category_id' => $product->category->id ?? null,
+                'category_name' => $product->category->name ?? __('lang_v1.uncategorized'),
+                'unit_name' => $product->unit->short_name ?? 'Pc(s)', // Default to Pieces if no unit
+                'selling_price' => 0,
+                'opening_stock' => 0,
+                'total_purchases' => 0,
+                'total_sales' => 0,
+                'total_adjustments' => 0,
+                'total_transfers_in' => 0,
+                'total_transfers_out' => 0,
+                'total_production_purchases' => 0,
+                'total_production_sales' => 0,
+                'final_stock' => 0,
+                'product_link' => ''
+            ];
+    
+            if (auth()->user()->can('product.view')) {
+                $productData['product_link'] = action([\App\Http\Controllers\ProductController::class, 'productStockHistory'], [$product->id]);
+            }
+    
+            foreach ($product->variations as $variation) {
+                $sellingPrice = $variation->sell_price_inc_tax ?? $variation->default_sell_price;
+                $productData['selling_price'] = $sellingPrice;
+    
+                $openingStock = $this->getVariationStockUpToDate(
+                    $business_id,
+                    $variation->id,
+                    $location_id,
+                    $previousMonthEnd
+                );
+    
+                $productData['opening_stock'] += $openingStock;
+    
+                $transactions = $this->getVariationTransactionsInPeriod(
+                    $business_id,
+                    $variation->id,
+                    $location_id,
+                    $startDate,
+                    $endDate
+                );
+    
+                $productData['total_purchases'] += $transactions['total_purchases'];
+                $productData['total_sales'] += $transactions['total_sales'];
+                $productData['total_adjustments'] += $transactions['total_adjustments'];
+                $productData['total_transfers_in'] += $transactions['total_transfers_in'];
+                $productData['total_transfers_out'] += $transactions['total_transfers_out'];
+                $productData['total_production_purchases'] += $transactions['total_production_purchases'];
+                $productData['total_production_sales'] += $transactions['total_production_sales'];
+            }
+    
+            $productData['final_stock'] = $productData['opening_stock']
+                + $productData['total_purchases']
+                + $productData['total_transfers_in']
+                + $productData['total_production_purchases']
+                - $productData['total_sales']
+                - $productData['total_adjustments']
+                - $productData['total_transfers_out']
+                - $productData['total_production_sales'];
+    
+            $categoryKey = $productData['category_id'] ?? 'uncategorized';
+            if (!isset($reportData[$categoryKey])) {
+                $reportData[$categoryKey] = [];
+            }
+            $reportData[$categoryKey][] = $productData;
+        }
+    
+        return $reportData;
+    }
+
+    protected function getVariationStockUpToDate($business_id, $variation_id, $location_id, $endDate)
+    {
+        $query = PurchaseLine::join('transactions as t', 'purchase_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('purchase_lines.variation_id', $variation_id)
+            ->where('t.transaction_date', '<=', $endDate);
+
+        if ($location_id) {
+            $query->where('t.location_id', $location_id);
+        }
+
+        $purchaseData = $query->select(
+            DB::raw("SUM(IF(t.type='purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase"),
+            DB::raw("SUM(IF(t.type IN ('purchase', 'purchase_return'), purchase_lines.quantity_returned, 0)) as total_purchase_return"),
+            DB::raw("SUM(IF(t.type='opening_stock', purchase_lines.quantity, 0)) as total_opening_stock"),
+            DB::raw("SUM(IF(t.type='purchase_transfer' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase_transfer"),
+            DB::raw("SUM(IF(t.type='production_purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_production_purchases") // Add this
+        )->first();
+
+        $sellQuery = TransactionSellLine::join('transactions as t', 'transaction_sell_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('transaction_sell_lines.variation_id', $variation_id)
+            ->where('t.transaction_date', '<=', $endDate)
+            ->where('t.status', 'final');
+
+        if ($location_id) {
+            $sellQuery->where('t.location_id', $location_id);
+        }
+
+        $sellData = $sellQuery->select(
+            DB::raw("SUM(IF(t.type='sell', transaction_sell_lines.quantity, 0)) as total_sold"),
+            DB::raw("SUM(IF(t.type='sell_transfer', transaction_sell_lines.quantity, 0)) as total_sell_transfer"),
+            DB::raw("SUM(IF(t.type='production_sell', transaction_sell_lines.quantity, 0)) as total_production_sales") // Add this
+        )->first();
+
+        $adjustmentQuery = StockAdjustmentLine::join('transactions as t', 'stock_adjustment_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('stock_adjustment_lines.variation_id', $variation_id)
+            ->where('t.transaction_date', '<=', $endDate);
+
+        if ($location_id) {
+            $adjustmentQuery->where('t.location_id', $location_id);
+        }
+
+        $adjustments = $adjustmentQuery->sum('stock_adjustment_lines.quantity');
+
+        return ($purchaseData->total_opening_stock ?? 0)
+            + ($purchaseData->total_purchase ?? 0)
+            + ($purchaseData->total_purchase_transfer ?? 0)
+            + ($purchaseData->total_production_purchases ?? 0) // Add this line
+            - ($purchaseData->total_purchase_return ?? 0)
+            - ($sellData->total_sold ?? 0)
+            - ($sellData->total_sell_transfer ?? 0)
+            - ($sellData->total_production_sales ?? 0) // Add this line
+            - $adjustments;
+    }
+
+
+    protected function getVariationTransactionsInPeriod($business_id, $variation_id, $location_id, $startDate, $endDate)
+    {
+        // Purchases and returns
+        $purchaseQuery = PurchaseLine::join('transactions as t', 'purchase_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('purchase_lines.variation_id', $variation_id)
+            ->whereBetween('t.transaction_date', [$startDate, $endDate]);
+
+        if ($location_id) {
+            $purchaseQuery->where('t.location_id', $location_id);
+        }
+
+        $purchaseData = $purchaseQuery->select(
+            DB::raw("SUM(IF(t.type='purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase"),
+            DB::raw("SUM(IF(t.type='purchase_return', purchase_lines.quantity_returned, 0)) as total_purchase_return"),
+            DB::raw("SUM(IF(t.type='purchase_transfer' AND t.status='received', purchase_lines.quantity, 0)) as total_purchase_transfer"),
+            DB::raw("SUM(IF(t.type='production_purchase' AND t.status='received', purchase_lines.quantity, 0)) as total_production_purchases") // Add this
+        )->first();
+
+        // Sales and transfers
+        $sellQuery = TransactionSellLine::join('transactions as t', 'transaction_sell_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('transaction_sell_lines.variation_id', $variation_id)
+            ->whereBetween('t.transaction_date', [$startDate, $endDate])
+            ->where('t.status', 'final');
+
+        if ($location_id) {
+            $sellQuery->where('t.location_id', $location_id);
+        }
+
+        $sellData = $sellQuery->select(
+            DB::raw("SUM(IF(t.type='sell', transaction_sell_lines.quantity, 0)) as total_sold"),
+            DB::raw("SUM(IF(t.type='sell_transfer', transaction_sell_lines.quantity, 0)) as total_sell_transfer"),
+            DB::raw("SUM(IF(t.type='production_sell', transaction_sell_lines.quantity, 0)) as total_production_sales") // Add this
+        )->first();
+
+        // Adjustments
+        $adjustmentQuery = StockAdjustmentLine::join('transactions as t', 'stock_adjustment_lines.transaction_id', '=', 't.id')
+            ->where('t.business_id', $business_id)
+            ->where('stock_adjustment_lines.variation_id', $variation_id)
+            ->whereBetween('t.transaction_date', [$startDate, $endDate]);
+
+        if ($location_id) {
+            $adjustmentQuery->where('t.location_id', $location_id);
+        }
+
+        $adjustments = $adjustmentQuery->sum('stock_adjustment_lines.quantity');
+
+        return [
+            'total_purchases' => ($purchaseData->total_purchase ?? 0) - ($purchaseData->total_purchase_return ?? 0),
+            'total_transfers_in' => $purchaseData->total_purchase_transfer ?? 0,
+            'total_sales' => $sellData->total_sold ?? 0,
+            'total_transfers_out' => $sellData->total_sell_transfer ?? 0,
+            'total_adjustments' => $adjustments,
+            'total_production_purchases' => $purchaseData->total_production_purchases ?? 0, // Add this
+            'total_production_sales' => $sellData->total_production_sales ?? 0, // Add this
+        ];
+    }
+
+
 
     public function getProductSalesReport(Request $request)
     {

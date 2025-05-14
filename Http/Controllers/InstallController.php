@@ -118,13 +118,7 @@ class InstallController extends Controller
     {
         try {
 
-            if (Schema::hasTable('p101_tax_form_items')) {
-                Schema::dropIfExists('p101_tax_form_items');
-            }
-            
-            if (Schema::hasTable('p101_tax_forms')) {
-                Schema::dropIfExists('p101_tax_forms');
-            }
+          
             // Optionally set the database engine, if needed (usually not necessary as InnoDB is default)
             DB::statement('SET default_storage_engine=INNODB;');
             // Always run migrations to ensure tables are up to date

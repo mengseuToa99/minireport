@@ -1209,176 +1209,107 @@ class SaleAndCustomerController extends Controller
 
         $business_id = $request->session()->get('user.business_id');
 
+        // dd($business_id);
         // Get date range from DateFilterService
         $dateRange = $this->dateFilterService->calculateDateRange($request);
         $start_date = $dateRange['start_date'];
         $end_date = $dateRange['end_date'];
 
-        // Format dates for exchange rate lookup
-        $report_month = date('m', strtotime($start_date));
-        $report_year = date('Y', strtotime($start_date));
-        $fifteenth_date = "$report_year-$report_month-15";
-
-        // Get the exchange rate from the 15th of the month
-        $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-            ->whereDate('date_1', $fifteenth_date)
-            ->first();
-
-        if (!$exchangeRate) {
-            // If no rate on 15th, get the closest rate on or before 15th within the same month
-            $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-                ->where('date_1', '<=', $fifteenth_date)
-                ->whereYear('date_1', $report_year)
-                ->whereMonth('date_1', $report_month)
-                ->orderBy('date_1', 'desc')
-                ->first();
-
-            // If still no rate found in the current month before 15th, try finding ANY rate in that month
-            if (!$exchangeRate) {
-                $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-                    ->whereYear('date_1', $report_year)
-                    ->whereMonth('date_1', $report_month)
-                    ->orderBy('date_1', 'desc') // Get the latest in the month
-                    ->first();
-            }
-
-            // Fallback: Get the absolute latest rate if still nothing found
-            if (!$exchangeRate) {
-                $exchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-                    ->orderBy('date_1', 'desc')
-                    ->first();
-            }
-        }
-
-        // Use the exchange rate from the database or default to 0
-        $exchange_rate = $exchangeRate ? $exchangeRate->KHR_3 : 0;
-        $exchange_rate_date_used = $exchangeRate ? $exchangeRate->date_1 : $fifteenth_date;
-
-        // Using the provided SQL query for accounts table data
-        $query = DB::table('accounts as a')
-            ->leftJoin('account_transactions as tr', 'a.id', '=', 'tr.account_id')
-            ->where('a.business_id', $business_id)
-            ->where('a.id', 550) // Targeting the specific account
+        // Base query using the provided SQL structure
+        $query = DB::table('transactions as t')
+            ->leftJoin('expense_categories as ec', 't.expense_category_id', '=', 'ec.id')
+            ->leftJoin('exchangerate_main as er', function ($join) {
+                $join->on(DB::raw('DATE(t.transaction_date)'), '=', 'er.date_1')
+                    ->orWhere(function ($query) {
+                        $query->whereNull('er.date_1')
+                            ->orderBy('er.date_1', 'desc')
+                            ->limit(1);
+                    });
+            })
+            ->where('t.business_id', $business_id)
+            ->where(function($q) {
+                $q->where('ec.name', 'LIKE', '%ចំណាយជួលអាគារ%');
+            })
+            ->where('t.status', 'final')
+            ->where('t.type', 'expense')
             ->select([
-                'a.id',
-                'a.account_number as លេខគណនី',
-                'a.name as ឈ្មោះ',
-                'a.account_details as លំអិត',
-                DB::raw("'ការជួលឬការជួលអាគារ' as ប្រភេទគណនី"),
-                DB::raw("'ការចំណាយ' as ក្រុមគណនី"),
-                DB::raw("'ការចំណាយ' as រងក្រុមគណនី"),
-                'a.description as brand_description',
-                DB::raw("COALESCE(SUM(CASE WHEN tr.type = 'credit' THEN tr.amount WHEN tr.type = 'debit' THEN -tr.amount ELSE 0 END), 600.0000) as សមតុល្យ"),
-                DB::raw("'004 លីម ស្រីពេជ្រ' as ទិន្នន័យលំអិត"),
-                DB::raw("MIN(tr.created_at) as first_transaction_date")
+                DB::raw('DATE(t.transaction_date) AS date'),
+                't.invoice_no',
+                DB::raw("COALESCE(ec.name, 'ចំណាយជួលផ្ទះ') AS contact_name"),
+                DB::raw("'' AS contact_type"),
+                DB::raw("'' AS tax_number"),
+                DB::raw("'រូបវន្ដបុគ្គល' AS tax_residence_type"),
+                't.final_total AS payable_amount',
+                DB::raw('ROUND(t.final_total * 0.10, 2) AS tax_amount'), // 10% withholding tax, rounded to 2 decimal places
+                DB::raw("'' AS certificate_number"),
+                DB::raw("'មិនទាន់ប្រកាសពន្ធ' AS tax_status"),
+                DB::raw("'១០%' AS tax_rate"),
+                DB::raw("'ការបង់ថ្លៃឈ្នួលចលនទ្រព្យ និង អចលនទ្រព្យ(រូបវន្ដបុគ្គល)' AS description"),
+                DB::raw("COALESCE(er.KHR_3, 0) AS exchange_rate")
             ])
-            ->groupBy('a.id', 'a.account_number', 'a.name', 'a.account_details', 'a.description');
+            ->orderBy('t.transaction_date', 'desc');
 
-        // Optional date filter if needed
-        if ($request->filled('date_filter') || ($request->filled('start_date') && $request->filled('end_date'))) {
-            $query->where(function($q) use ($start_date, $end_date) {
-                $q->whereBetween('tr.created_at', [$start_date, $end_date])
-                  ->orWhereNull('tr.created_at'); // Include accounts with no transactions
-            });
+        // Apply date filter if provided
+        if (!empty($start_date) && !empty($end_date)) {
+            $query->whereBetween('t.transaction_date', [$start_date, $end_date]);
         }
 
-        // Execute the query
-        $accountData = $query->get();
-
-        // Create data compatible with the existing withholding tax table
-        $records = collect();
-        foreach ($accountData as $account) {
-            // Get transaction date for exchange rate lookup if available
-            $transaction_date = $account->first_transaction_date ? Carbon::parse($account->first_transaction_date) : null;
-            
-            // Use transaction-specific exchange rate if available, otherwise use the month's rate
-            $tx_exchange_rate = $exchange_rate;
-            
-            if ($transaction_date) {
-                // Try to get exchange rate for the transaction date
-                $txExchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-                    ->whereDate('date_1', $transaction_date->format('Y-m-d'))
-                    ->first();
-                
-                // If not found, get closest rate before transaction date
-                if (!$txExchangeRate) {
-                    $txExchangeRate = \App\ExchangeRate::where('business_id', $business_id)
-                        ->where('date_1', '<=', $transaction_date->format('Y-m-d'))
-                        ->orderBy('date_1', 'desc')
-                        ->first();
-                }
-                
-                // Use transaction-specific rate if found
-                if ($txExchangeRate) {
-                    $tx_exchange_rate = $txExchangeRate->KHR_3;
-                }
-            }
-            
-            // Create a record that will match the structure expected by the view
-            $record = new \stdClass();
-            $record->id = $account->id;
-            $record->date = $transaction_date ? $transaction_date->format('Y-m-d') : date('Y-m-d');
-            $record->paid_on = $transaction_date ? $transaction_date->format('Y-m-d') : date('Y-m-d');
-            $record->invoice_no = $account->លេខគណនី ?? '';
-            $record->tax_residence_type = "ពន្ធកាត់ទុកលើថ្លៃឈ្នួល (រូបវន្ដបុគ្គល) ១០%";
-            $record->contact_type = "អ្នកផ្គត់ផ្គង់ ទូទៅ";
-            $record->tax_number = "";
-            $record->contact_name = $account->ឈ្មោះ ?? '';
-            $record->tax_rate = 10;
-            $record->payable_amount = $account->សមតុល្យ ?? 600;
-            $record->tax_amount = ($account->សមតុល្យ ?? 600) * 0.1; // 10% of balance
-            $record->certificate_number = "";
-            $record->tax_status = "មិនទាន់ប្រកាសពន្ធ";
-            $record->description = "ការបង់ថ្លៃឈ្នួលចលនទ្រព្យ និង អចលនទ្រព្យ(រូបវន្ដបុគ្គល)";
-            $record->exchange_rate = $tx_exchange_rate;
-            
-            $records->add($record);
+        // Apply location filter if provided
+        if ($request->filled('location_id')) {
+            $query->where('t.location_id', $request->input('location_id'));
         }
 
-        // For AJAX response, we'll maintain the original structure
-        if ($request->ajax() || $request->wantsJson()) {
-            // Format data for display
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $transactions = $query->skip($offset)->take($limit)->get();
+
+        // Calculate totals
+        $totals = (object)[
+            'total_payable_amount' => $transactions->sum('payable_amount'),
+            'total_tax_amount' => $transactions->sum('tax_amount')
+        ];
+
+        // Format data for AJAX response
+        if ($request->ajax()) {
             $formatted_data = [];
-            
-            foreach ($records as $record) {
-                // Format tax rate to display
-                $tax_rate_display = is_numeric($record->tax_rate) ? number_format($record->tax_rate, 0) . '%' : $record->tax_rate;
-                
-                // Map to expected structure
+
+            foreach ($transactions as $transaction) {
                 $formatted_data[] = [
-                    'date' => Carbon::parse($record->date)->format('d-m-Y'),
-                    'invoice_no' => $record->invoice_no,
-                    'tax_residence_type' => $record->tax_residence_type,
-                    'contact_type' => $record->contact_type,
-                    'tax_number' => $record->tax_number ?? '',
-                    'contact_name' => $record->contact_name,
-                    'transaction_type' => $record->tax_residence_type, // Using same field for display
-                    'tax_rate' => $tax_rate_display,
-                    'payable_amount' => $record->payable_amount,
-                    'tax_amount' => $record->tax_amount,
-                    'certificate_number' => $record->certificate_number ?? '',
-                    'tax_status' => $record->tax_status,
-                    'description' => $record->description ?? '',
-                    'exchange_rate' => $record->exchange_rate
+                    'date' => $transaction->date ? Carbon::parse($transaction->date)->format('d-m-Y') : date('d-m-Y'),
+                    'invoice_no' => $transaction->invoice_no ?? '',
+                    'tax_residence_type' => $transaction->tax_residence_type ?? 'ពន្ធកាត់ទុកលើថ្លៃឈ្នួល (រូបវន្ដបុគ្គល) ១០%',
+                    'contact_type' => $transaction->contact_type ?? 'អ្នកផ្គត់ផ្គង់ ទូទៅ',
+                    'tax_number' => $transaction->tax_number ?? '',
+                    'contact_name' => $transaction->contact_name ?? '',
+                    'transaction_type' => $transaction->tax_residence_type ?? 'ពន្ធកាត់ទុកលើថ្លៃឈ្នួល (រូបវន្ដបុគ្គល) ១០%',
+                    'tax_rate' => $transaction->tax_rate ?? '១០%',
+                    'payable_amount' => $transaction->payable_amount ?? 0,
+                    'tax_amount' => $transaction->tax_amount ?? 0,
+                    'certificate_number' => $transaction->certificate_number ?? '',
+                    'tax_status' => $transaction->tax_status ?? 'មិនទាន់ប្រកាសពន្ធ',
+                    'description' => $transaction->description ?? 'ការបង់ថ្លៃឈ្នួលចលនទ្រព្យ និង អចលនទ្រព្យ(រូបវន្ដបុគ្គល)',
+                    'exchange_rate' => $transaction->exchange_rate ?? $exchange_rate
                 ];
             }
 
-            // Calculate totals
-            $totals = (object) [
-                'total_payable_amount' => $records->sum('payable_amount'),
-                'total_tax_amount' => $records->sum('tax_amount')
-            ];
-
-            $response = [
+            return response()->json([
                 'data' => $formatted_data,
-                'total' => $records->count(),
-                'total_pages' => 1, // Pagination managed by view
-                'current_page' => 1,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page,
                 'total_payable_amount' => $totals->total_payable_amount ?? 0,
-                'total_tax_amount' => $totals->total_tax_amount ?? 0
-            ];
-            
-            return response()->json($response);
+                'total_tax_amount' => $totals->total_tax_amount ?? 0,
+                'exchange_rate' => DB::table('exchangerate_main')
+                    ->orderBy('date_1', 'desc')
+                    ->value('KHR_3') ?? 4100 // Default to 4100 if no exchange rate found
+            ]);
         }
 
         // Get business locations for dropdown
@@ -1432,20 +1363,27 @@ class SaleAndCustomerController extends Controller
         // Get data from the specific account
         $query = DB::table('accounts as a')
             ->leftJoin('account_transactions as tr', 'a.id', '=', 'tr.account_id')
+            ->leftJoin('exchange_rates as er', function ($join) {
+                $join->on(DB::raw('CURRENT_DATE()'), '>=', 'er.date_1')
+                    ->orderBy('er.date_1', 'desc')
+                    ->limit(1);
+            })
             ->where('a.business_id', $business_id)
             ->where('a.id', 550) // Targeting the specific account
             ->select([
                 'a.id',
                 'a.account_number as លេខគណនី',
                 'a.name as ឈ្មោះ',
-                DB::raw("COALESCE(SUM(CASE WHEN tr.type = 'credit' THEN tr.amount WHEN tr.type = 'debit' THEN -tr.amount ELSE 0 END), 600.0000) as សមតុល្យ")
+                DB::raw("COALESCE(SUM(CASE WHEN tr.type = 'credit' THEN tr.amount WHEN tr.type = 'debit' THEN -tr.amount ELSE 0 END), 600.0000) as សមតុល្យ"),
+                DB::raw("COALESCE(er.KHR_3, 4025) as exchange_rate")
             ])
-            ->groupBy('a.id', 'a.account_number', 'a.name');
+            ->groupBy('a.id', 'a.account_number', 'a.name', 'er.KHR_3');
             
         $accountData = $query->first();
         
         // Default amount is 600 if no account data found
         $amount = $accountData ? $accountData->សមតុល្យ : 600.00;
+        $exchange_rate = $accountData ? $accountData->exchange_rate : 4025;
 
         // For AJAX requests (not needed in this updated version, but kept for backward compatibility)
         if ($request->ajax() || $request->wantsJson()) {
@@ -1829,5 +1767,270 @@ class SaleAndCustomerController extends Controller
 
         return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.customer_report_via_staff')
             ->with(compact('users'));
+    }
+
+    public function getewht(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range from DateFilterService
+        $dateRange = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Base query for withholding tax data
+        $query = Transaction::leftJoin('contacts', 'transactions.contact_id', '=', 'contacts.id')
+            ->leftJoin('business_locations', 'transactions.location_id', '=', 'business_locations.id')
+            ->leftJoin('tax_rates', 'transactions.tax_id', '=', 'tax_rates.id')
+            ->where('transactions.business_id', $business_id)
+            ->where('transactions.type', 'purchase')
+            ->where('transactions.status', 'final')
+            ->whereNotNull('transactions.additional_expense_value_2') // withholding tax field
+            ->select([
+                'transactions.transaction_date as date',
+                'transactions.invoice_no',
+                'transactions.additional_expense_value_2 as withholding_tax',
+                'transactions.final_total as payable_amount',
+                'contacts.name as contact_name',
+                'contacts.tax_number',
+                'contacts.type as contact_type',
+                'tax_rates.name as tax_type',
+                'tax_rates.amount as tax_rate',
+                'transactions.additional_expense_value_1 as certificate_number',
+                DB::raw("CASE 
+                    WHEN YEAR(transactions.transaction_date) = YEAR(CURRENT_DATE()) 
+                    THEN 'មិនទាន់ប្រកាសពន្ធ' 
+                    ELSE 'បានប្រកាសពន្ធ' 
+                END as tax_status")
+            ]);
+
+        // Apply date filter
+        if (!empty($start_date) && !empty($end_date)) {
+            $query->whereBetween('transactions.transaction_date', [$start_date, $end_date]);
+        }
+
+        // Apply location filter
+        if ($request->filled('location_id')) {
+            $query->where('transactions.location_id', $request->input('location_id'));
+        }
+
+        // Apply supplier filter
+        if ($request->filled('supplier_id')) {
+            $query->where('transactions.contact_id', $request->input('supplier_id'));
+        }
+
+        // Apply tax type filter
+        if ($request->filled('tax_type')) {
+            $query->where('tax_rates.name', 'like', '%' . $request->input('tax_type') . '%');
+        }
+
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $transactions = $query->skip($offset)->take($limit)->get();
+
+        // Get totals
+        $totals = $query->selectRaw('
+            SUM(transactions.final_total) as total_payable_amount,
+            SUM(transactions.additional_expense_value_2) as total_withholding_tax
+        ')->first();
+
+        // Format data for response
+        $formatted_data = [];
+        foreach ($transactions as $transaction) {
+            $formatted_data[] = [
+                'date' => $transaction->date ? Carbon::parse($transaction->date)->format('d-m-Y') : '',
+                'invoice_no' => $transaction->invoice_no ?? '',
+                'tax_type' => $transaction->tax_type ?? '',
+                'contact_type' => $transaction->contact_type ?? '',
+                'tax_number' => $transaction->tax_number ?? '',
+                'contact_name' => $transaction->contact_name ?? '',
+                'transaction_type' => $transaction->tax_type ?? '',
+                'tax_rate' => $transaction->tax_rate ? number_format($transaction->tax_rate, 0) . '%' : '',
+                'payable_amount' => $transaction->payable_amount ?? 0,
+                'withholding_tax' => $transaction->withholding_tax ?? 0,
+                'certificate_number' => $transaction->certificate_number ?? '',
+                'tax_status' => $transaction->tax_status ?? ''
+            ];
+        }
+
+        // Get business locations for dropdown
+        $business_locations = BusinessLocation::forDropdown($business_id, true);
+        
+        // Get suppliers for dropdown
+        $suppliers = Contact::suppliersDropdown($business_id, false);
+
+        // Get tax types for dropdown
+        $tax_types = [
+            'resident' => __('minireportb1::minireportb1.resident'),
+            'non_resident' => __('minireportb1::minireportb1.non_resident')
+        ];
+
+        if ($request->ajax()) {
+            return response()->json([
+                'data' => $formatted_data,
+                'total' => $total_records,
+                'total_pages' => ceil($total_records / $limit),
+                'current_page' => (int)$page,
+                'total_payable_amount' => $totals->total_payable_amount ?? 0,
+                'total_withholding_tax' => $totals->total_withholding_tax ?? 0
+            ]);
+        }
+
+        return view('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.e_wht')
+            ->with(compact('business_locations', 'suppliers', 'tax_types', 'formatted_data', 'total_records', 'totals'));
+    }
+
+    public function getWithholdingTaxData(Request $request)
+    {
+        if (!auth()->user()->can('purchase_n_sell_report.view')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $business_id = $request->session()->get('user.business_id');
+
+        // Get date range
+        $dateRange = $this->dateFilterService->calculateDateRange($request);
+        $start_date = $dateRange['start_date'];
+        $end_date = $dateRange['end_date'];
+
+        // Get latest exchange rate
+        $latest_exchange_rate = DB::table('exchangerate_main')
+            ->select('KHR_3')
+            ->orderBy('date_1', 'desc')
+            ->first();
+        
+        $exchange_rate = $latest_exchange_rate ? $latest_exchange_rate->KHR_3 : 4100;
+
+        // Base query for withholding tax data - using transactions with withholding tax
+        $query = DB::table('transactions as t')
+            ->leftJoin('contacts as c', 't.contact_id', '=', 'c.id')
+            ->leftJoin('business_locations as bl', 't.location_id', '=', 'bl.id')
+            ->leftJoin('tax_rates as tr', 't.tax_id', '=', 'tr.id')
+            ->leftJoin('expense_categories as ec', 't.expense_category_id', '=', 'ec.id')
+            ->leftJoin('exchangerate_main as er', function ($join) {
+                $join->on(DB::raw('DATE(t.transaction_date)'), '=', 'er.date_1')
+                    ->orWhere(function ($query) {
+                        $query->whereNull('er.date_1')
+                            ->orderBy('er.date_1', 'desc')
+                            ->limit(1);
+                    });
+            })
+            ->where('t.business_id', $business_id)
+            ->where('t.status', 'final')
+            ->where(function($q) {
+                $q->where('t.type', 'sell')
+                ->where('ec.name', 'like', '%ឈ្នួល%')
+                  ->orWhere('t.type', 'purchase')
+                  ->orWhere('t.type', 'expense');
+            })
+            ->select([
+                DB::raw('DATE(t.transaction_date) AS date'),
+                't.invoice_no',
+                DB::raw('ROUND(t.final_total * 0.10, 4) as withholding_tax'), // Calculate 10% withholding tax
+                't.final_total as payable_amount',
+                'c.name as contact_name',
+                'c.tax_number',
+                'c.type as contact_type',
+                DB::raw("'ពន្ធកាត់ទុក' as tax_type"),
+                DB::raw("'10%' as tax_rate"),
+                DB::raw("COALESCE(t.additional_expense_value_1, '0.0000') as certificate_number"),
+                DB::raw("CASE 
+                    WHEN YEAR(t.transaction_date) = YEAR(CURRENT_DATE()) 
+                    THEN 'មិនទាន់ប្រកាសពន្ធ' 
+                    ELSE 'បានប្រកាសពន្ធ' 
+                END as tax_status"),
+                DB::raw("'ពន្ធកាត់ទុក' as transaction_type"),
+                'bl.name as location_name',
+                DB::raw("COALESCE(er.KHR_3, {$exchange_rate}) as exchange_rate") // Get exchange rate or use default
+            ]);
+
+        // Apply date filter
+        if (!empty($start_date) && !empty($end_date)) {
+            $query->whereBetween('t.transaction_date', [$start_date, $end_date]);
+        }
+
+        // Apply location filter
+        if ($request->filled('location_filter')) {
+            $query->where('t.location_id', $request->input('location_filter'));
+        }
+
+        // Apply supplier filter
+        if ($request->filled('supplier_id')) {
+            $query->where('t.contact_id', $request->input('supplier_id'));
+        }
+
+        // Apply tax type filter
+        if ($request->filled('tax_type')) {
+            $tax_type = $request->input('tax_type');
+            if ($tax_type === 'resident') {
+                $query->where('c.is_export', 0);
+            } elseif ($tax_type === 'non_resident') {
+                $query->where('c.is_export', 1);
+            }
+        }
+
+        // Clone the query for totals
+        $totals_query = clone $query;
+
+        // Get total record count for pagination
+        $total_records = $query->count();
+
+        // Get records with pagination
+        $page = (int)$request->input('page', 1);
+        $limit = (int)$request->input('limit', 10);
+        $offset = ($page - 1) * $limit;
+
+        // Apply pagination to query
+        $transactions = $query->skip($offset)->take($limit)->get();
+
+        // Calculate totals
+        $totals = $totals_query->selectRaw('
+            SUM(t.final_total) as total_payable_amount,
+            SUM(ROUND(t.final_total * 0.10, 4)) as total_withholding_tax
+        ')->first();
+
+        // Format data for response
+        $formatted_data = [];
+        foreach ($transactions as $transaction) {
+            $formatted_data[] = [
+                'date' => $transaction->date ?? '',
+                'invoice_no' => $transaction->invoice_no ?? '',
+                'tax_type' => $transaction->tax_type ?? '',
+                'contact_type' => $transaction->contact_type ?? '',
+                'tax_number' => $transaction->tax_number ?? '',
+                'contact_name' => $transaction->contact_name ?? '',
+                'transaction_type' => $transaction->transaction_type ?? '',
+                'tax_rate' => $transaction->tax_rate ?? '',
+                'payable_amount' => $transaction->payable_amount ?? 0,
+                'withholding_tax' => $transaction->withholding_tax ?? 0,
+                'certificate_number' => $transaction->certificate_number ?? '',
+                'tax_status' => $transaction->tax_status ?? '',
+                'exchange_rate' => $transaction->exchange_rate ?? $exchange_rate
+            ];
+        }
+
+        // Format response data
+        $response = [
+            'data' => $formatted_data,
+            'total' => $total_records,
+            'total_pages' => ceil($total_records / $limit),
+            'current_page' => $page,
+            'total_payable_amount' => $totals->total_payable_amount ?? 0,
+            'total_withholding_tax' => $totals->total_withholding_tax ?? 0,
+            'exchange_rate' => $exchange_rate
+        ];
+
+        return response()->json($response);
     }
 }

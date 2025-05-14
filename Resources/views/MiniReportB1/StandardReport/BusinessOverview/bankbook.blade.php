@@ -120,11 +120,7 @@
                     <label class="mr-2">បង្ហាញរូបិយប័ណ្ណ៖</label>
                     <button id="currency-toggle" class="btn btn-sm btn-primary" data-currency="khr">ប្តូរទៅ៖ ដុល្លារ (USD)</button>
                 </div>
-                <div class="print-button-container" style="margin-top: 10px; margin-bottom: 10px;">
-                    <button id="print-button" class="btn btn-sm btn-primary">
-                        <i class="fas fa-print"></i> បោះពុម្ព
-                    </button>
-                </div>
+              @include('minireportb1::MiniReportB1.components.printbutton')
             </div>
         @endcomponent
     </div>
@@ -266,84 +262,9 @@
             });
             
             // Print button click handler
-            $('#print-button').on('click', function() {
-                // Update print view before printing
-                updatePrintView();
-                
-                // Force browser to reflow before printing
-                setTimeout(function() {
-                    $('body').css('display', 'block');
-                    window.print();
-                }, 300);
-            });
+        
             
-            // Function to update the print view with data in both currencies
-            function updatePrintView() {
-                if (bankbookData.length === 0) return;
-                
-                // Get first transaction's exchange rate for the header
-                const firstTxnRate = bankbookData[0].exchange_rate || defaultExchangeRate;
-                $('#print-exchange-rate').text(firstTxnRate);
-                
-                // Clear the print table body
-                const printTbody = $('#print-bankbook-body');
-                printTbody.empty();
-                
-                // Track totals for both currencies
-                let totalCashInUSD = 0;
-                let totalExpenseUSD = 0;
-                let finalBalanceUSD = 0;
-                let totalCashInKHR = 0;
-                let totalExpenseKHR = 0;
-                let finalBalanceKHR = 0;
-                
-                // Add each transaction to the print view
-                $.each(bankbookData, function(index, row) {
-                    const exchangeRate = row.exchange_rate || defaultExchangeRate;
-                    
-                    // Calculate KHR values
-                    const cashInKHR = parseFloat(row.cash_in) * exchangeRate;
-                    const expenseKHR = parseFloat(row.expense) * exchangeRate;
-                    const balanceKHR = parseFloat(row.balance) * exchangeRate;
-                    
-                    // Update totals
-                    totalCashInUSD += parseFloat(row.cash_in) || 0;
-                    totalExpenseUSD += parseFloat(row.expense) || 0;
-                    finalBalanceUSD = parseFloat(row.balance) || 0;
-                    
-                    totalCashInKHR += cashInKHR;
-                    totalExpenseKHR += expenseKHR;
-                    finalBalanceKHR = balanceKHR;
-                    
-                    const cleanDescription = $('<div>').html(row.description).text();
-                    const shortDescription = cleanDescription.length > 20 ? cleanDescription.substring(0, 18) + '...' : cleanDescription;
-                    
-                    // Format for print view with both currencies - using shorter padding to fit more on page
-                    const tr = $('<tr>').append(
-                        $('<td>').text(row.date).css({'padding': '2px', 'border': '1px solid black', 'font-size': '10px'}),
-                        $('<td>').text(row.voucher_no).css({'padding': '2px', 'border': '1px solid black', 'font-size': '10px'}),
-                        $('<td>').text(row.payee).css({'padding': '2px', 'border': '1px solid black', 'font-size': '10px'}),
-                        $('<td>').text(shortDescription).css({'padding': '2px', 'border': '1px solid black', 'font-size': '10px'}),
-                        $('<td>').text(row.ac_code).css({'padding': '2px', 'border': '1px solid black', 'font-size': '10px'}),
-                        $('<td>').text('$' + Number(row.cash_in).toFixed(2)).css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'}),
-                        $('<td>').text(Math.round(cashInKHR).toLocaleString() + '៛').css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'}),
-                        $('<td>').text('$' + Number(row.expense).toFixed(2)).css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'}),
-                        $('<td>').text(Math.round(expenseKHR).toLocaleString() + '៛').css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'}),
-                        $('<td>').text('$' + Number(row.balance).toFixed(2)).css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'}),
-                        $('<td>').text(Math.round(balanceKHR).toLocaleString() + '៛').css({'padding': '2px', 'border': '1px solid black', 'text-align': 'right', 'font-size': '10px'})
-                    );
-                    
-                    printTbody.append(tr);
-                });
-                
-                // Update the totals in the print footer
-                $('#print-total-cash-in-usd').text('$' + Number(totalCashInUSD).toFixed(2));
-                $('#print-total-cash-in-khr').text(Math.round(totalCashInKHR).toLocaleString() + '៛');
-                $('#print-total-expense-usd').text('$' + Number(totalExpenseUSD).toFixed(2));
-                $('#print-total-expense-khr').text(Math.round(totalExpenseKHR).toLocaleString() + '៛');
-                $('#print-final-balance-usd').text('$' + Number(finalBalanceUSD).toFixed(2));
-                $('#print-final-balance-khr').text(Math.round(finalBalanceKHR).toLocaleString() + '៛');
-            }
+          
             
             function displayInKHR() {
                 if (bankbookData.length === 0) return;

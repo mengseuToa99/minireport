@@ -228,6 +228,7 @@ return [
     'tax_amount' => 'Tax Amount',
     'payment_reference' => 'Payment Reference',
     'tax_period' => 'Tax Period',
+    'saleAndFrancier' => 'Sale and Francier',
     
     // Date filter translations
     'report_period' => 'Report period',
@@ -330,6 +331,8 @@ return [
     'business_overview' => 'Business Overview',
     'bankbook' => 'Bankbook',
 
+    'supplier' => 'Supplier',
+
     // Purchases & Expenses Report
     'purchases_expenses_report' => 'Purchases & Expenses Report',
     'transaction_no' => 'Transaction No',
@@ -340,11 +343,13 @@ return [
     'transaction_type_purchase' => 'Purchase',
     'transaction_type_expense' => 'Expense',
     'all_types' => 'All Types',
+    'all_suppliers' => 'All Suppliers',
     'select_rows' => 'Select Rows',
     'print_selected' => 'Print Selected',
     'select_all' => 'Select All',
     'select_none' => 'Select None',
-
+    'tax_type' => 'Tax Type',
+    'all_tax_types' => 'All Tax Types',
     // Salary Slip specific translations
     'salary_slip' => 'Salary Slip',
     'employee_no' => 'Employee No',

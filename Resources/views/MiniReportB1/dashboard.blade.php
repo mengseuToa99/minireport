@@ -853,27 +853,43 @@
 
     <!-- Tab navigation handler -->
     <script>
-        // Handle tab activation based on URL hash
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check if the URL has a hash
-            if (window.location.hash) {
-                const hash = window.location.hash.substring(1); // Remove the # character
-                const tabId = hash + '-tab'; // Add the -tab suffix used in the HTML
+        $(document).ready(function() {
+            // Function to handle tab switching
+            function switchTab(tabId) {
+                // Remove active class from all tabs and panes
+                $('.nav-link').removeClass('active');
+                $('.tab-pane').removeClass('show active');
                 
-                // Find the tab element
-                const tabElement = document.getElementById(tabId);
+                // Add active class to selected tab and pane
+                $(`#${tabId}`).addClass('active');
+                $(`#${tabId.replace('-tab', '')}`).addClass('show active');
                 
-                if (tabElement) {
-                    // Activate the tab
-                    setTimeout(function() {
-                        $(tabElement).tab('show');
-                        console.log('Activated tab:', tabId);
-                    }, 200);
-                }
+                // Store the active tab in localStorage
+                localStorage.setItem('activeTab', tabId);
             }
+
+            // Handle tab clicks
+            $('.nav-link').on('click', function(e) {
+                e.preventDefault();
+                const tabId = $(this).attr('id');
+                switchTab(tabId);
+            });
+
+            // Check for hash in URL or stored tab
+            const hash = window.location.hash.substring(1);
+            const storedTab = localStorage.getItem('activeTab');
             
-            // Update hash when tabs are clicked
-            $('.nav-tabs a').on('shown.bs.tab', function(e) {
+            if (hash) {
+                switchTab(`${hash}-tab`);
+            } else if (storedTab) {
+                switchTab(storedTab);
+            } else {
+                // Default to standard tab
+                switchTab('standard-tab');
+            }
+
+            // Update URL hash when tabs are clicked
+            $('.nav-link').on('shown.bs.tab', function(e) {
                 const id = e.target.id.replace('-tab', '');
                 history.replaceState(null, null, '#' + id);
             });

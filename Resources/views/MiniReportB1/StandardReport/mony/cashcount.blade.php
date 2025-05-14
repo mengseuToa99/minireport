@@ -12,13 +12,7 @@
                 <form id="filterForm">
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="form-group">
-                                {!! Form::label('date', __('report.date') . ':') !!}
-                                <div class="input-group">
-                                    {!! Form::text('date', $date, ['class' => 'form-control', 'readonly', 'id' => 'date']) !!}
-                                    <span class="input-group-addon"><i class="fa fa-calendar"></i></span>
-                                </div>
-                            </div>
+                     
                         </div>
                         
                         <div class="col-md-6">

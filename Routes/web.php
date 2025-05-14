@@ -181,6 +181,9 @@ Route::middleware('web', 'SetSessionData', 'auth', 'MiniReportB1Language', 'time
     Route::get('standardreport/rental-invoice', [SaleAndCustomerController::class, 'rentalInvoice'])->name('sr_rental_invoice');
     Route::get('standardreport/expense-purchase-report', [SaleAndCustomerController::class, 'purchasesExpensesReport'])->name('sr_expense_purchase_report');
     Route::get('standardreport/customer-report-via-staff', [SaleAndCustomerController::class, 'customerReportViaStaff'])->name('sr_customer_report_via_staff');
+    Route::get('standardreport/e-wht', [SaleAndCustomerController::class, 'getewht'])->name('sr_e_wht');
+    Route::get('standardreport/get-withholding-tax-data', [SaleAndCustomerController::class, 'getWithholdingTaxData'])->name('minireportb1.getWithholdingTaxData');
+    Route::post('standardreport/get-withholding-tax-data', [SaleAndCustomerController::class, 'getWithholdingTaxData'])->name('minireportb1.postWithholdingTaxData');
 
     
     // customer report
@@ -198,18 +201,20 @@ Route::middleware('web', 'SetSessionData', 'auth', 'MiniReportB1Language', 'time
     Route::get('standardreport/monthly-nssf-tax-report', [HumanResourceController::class, 'monthlyNssfTaxReport'])->name('minireportb1.standardReport.humanResource.monthly_nssf_tax_report');
     Route::get('standardreport/payroll-allowance-deduction-report', [HumanResourceController::class, 'payrollAllowanceDeductionReport'])->name('minireportb1.standardReport.humanResource.payroll_allowance_deduction_report');
     Route::get('standardreport/bank-reconciliation-report', [HumanResourceController::class, 'bankReconciliationReport'])->name('minireportb1.standardReport.humanResource.bank_reconciliation_report');
+    Route::view('standardreport/cash-recon', 'minireportb1::MiniReportB1.StandardReport.HumanResource.cash_recon')->name('minireportb1.cash_recon');
+
 
     // Office Receipt
     Route::get('standardreport/office-receipt', [\Modules\MiniReportB1\Http\Controllers\StandardReport\InvoiceController::class, 'getOfficeReceipt'])->name('minireportb1.office_receipt');
     Route::get('standardreport/transactions', [\Modules\MiniReportB1\Http\Controllers\StandardReport\InvoiceController::class, 'getTransactions'])->name('minireportb1.get_transactions');
-    Route::view('standardreport/cash-count', 'minireportb1::MiniReportB1.StandardReport.mony.cashcount')->name('minireportb1.office_receipt');
+
 
     // New salary slip routes
     Route::get('standardreport/salary-slip', [HumanResourceController::class, 'getSalarySlip'])->name('minireportb1.salary_slip');
 
-    // tax gov document
-    // Route::view('tax-gov-document', 'minireportb1::MiniReportB1.gov_tax.p101_tax_form')->name('tax_gov_document');
-    Route::view('tax-gov-document2', 'minireportb1::MiniReportB1.gov_tax.Application_Form_for_Property_Rental_Tax')->name('tax_gov_document2');
+    // tax gov documentp
+    Route::view('tax-gov-p101', 'minireportb1::MiniReportB1.gov_tax.p101_tax_form')->name('tax_gov_document');
+    Route::view('application-form-for-property-rental-tax', 'minireportb1::MiniReportB1.gov_tax.Application_Form_for_Property_Rental_Tax')->name('tax_gov_document2');
     Route::view('tax-gov-document3', 'minireportb1::MiniReportB1.gov_tax.Return_for_Tax_on_Advertisement')->name('tax_gov_document3');
     Route::view('tax-gov-document4', 'minireportb1::MiniReportB1.gov_tax.Application_Form_VAT_SUS_02')->name('tax_gov_document4');
     Route::view('tax-gov-document5', 'minireportb1::MiniReportB1.gov_tax.Application_Form_SUS_01')->name('tax_gov_document5');

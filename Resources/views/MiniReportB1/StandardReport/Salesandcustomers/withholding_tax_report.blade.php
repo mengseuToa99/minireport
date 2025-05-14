@@ -20,7 +20,7 @@
                         {!! Form::select('location_id', $business_locations, null, ['class' => 'form-control select2', 'style' => 'width:100%', 'placeholder' => __('lang_v1.all')]) !!}
                     </div>
                     <div class="form-group mt-3">
-                        {!! Form::label('supplier_id', __('contact.supplier') . ':') !!}
+                        {!! Form::label('supplier_id', __('minireportb1::minireportb1.supplier') . ':') !!}
                         {!! Form::select('supplier_id', $suppliers, null, ['class' => 'form-control select2', 'style' => 'width:100%', 'placeholder' => __('lang_v1.all')]) !!}
                     </div>
                     <div class="form-group mt-3">
@@ -134,6 +134,18 @@
     <!-- JavaScript for AJAX and Filters -->
     <script>
         $(document).ready(function() {
+            // Helper function for formatting numbers with commas and no decimals
+            function formatKHR(number) {
+                // Ensure it's a number
+                number = parseFloat(number) || 0;
+                
+                // Round to integer
+                number = Math.round(number);
+                
+                // Format with thousands separators
+                return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " ៛";
+            }
+            
             // Initialize jQuery UI Datepicker
             $("#start_date, #end_date").datepicker({
                 dateFormat: "yy-mm-dd"
@@ -158,7 +170,7 @@
                 };
 
                 $.ajax({
-                    url: '{{ action('\Modules\MiniReportB1\Http\Controllers\StandardReport\SaleAndCustomerController@withholdingTaxReport') }}',
+                    url: '{{ route("sr_withholding_tax_report") }}',
                     type: 'GET',
                     dataType: 'json',
                     data: formData,
@@ -180,6 +192,9 @@
                         $('#prev-page').prop('disabled', currentPage <= 1);
                         $('#next-page').prop('disabled', currentPage >= totalPages);
 
+                        // Get exchange rate from response, ALWAYS default to 4100 if 0 or not provided
+                        const exchange_rate = (parseFloat(response.exchange_rate) > 0) ? parseFloat(response.exchange_rate) : 4100;
+
                         // Initialize category totals
                         let categoryTotals = {
                             category_1: 0,
@@ -200,10 +215,16 @@
                                 // Calculate the global row index across all pages
                                 const rowIndex = (currentPage - 1) * rowLimit + index + 1;
                                 
-                                // Determine which tax category to use based on tax rate and supplier type
-                                let tax_amount = parseFloat(row.tax_amount) || 0;
-                                let tax_category = '';
-                                let tax_col_index = 0;
+                                // Always ensure a valid exchange rate (minimum 4100) for consistent display
+                                const row_exchange_rate = (parseFloat(row.exchange_rate) > 0) ? parseFloat(row.exchange_rate) : 0;
+                                
+                                // Handle USD amounts (these are always in the data)
+                                let payable_amount_usd = parseFloat(row.payable_amount) || 0;
+                                let tax_amount_usd = parseFloat(row.tax_amount) || 0;
+                                
+                                // Convert to KHR
+                                let payable_amount_khr = payable_amount_usd * row_exchange_rate;
+                                let tax_amount_khr = tax_amount_usd * row_exchange_rate;
                                 
                                 // Default all cells to empty
                                 let tax_cells = Array(11).fill('');
@@ -214,51 +235,48 @@
                                     if (row.tax_rate.includes('១៥%') || row.tax_rate.includes('15%')) {
                                         // Service fees or interest categories (1 or 2)
                                         if (row.transaction_type && row.transaction_type.includes('សេវា')) {
-                                            tax_cells[0] = __currency_trans_from_en(tax_amount, false);
-                                            categoryTotals.category_1 += tax_amount;
+                                            tax_cells[0] = formatKHR(tax_amount_khr);
+                                            categoryTotals.category_1 += tax_amount_khr;
                                         } else {
-                                            tax_cells[1] = __currency_trans_from_en(tax_amount, false);
-                                            categoryTotals.category_2 += tax_amount;
+                                            tax_cells[1] = formatKHR(tax_amount_khr);
+                                            categoryTotals.category_2 += tax_amount_khr;
                                         }
                                     } else if (row.tax_rate.includes('៦%') || row.tax_rate.includes('6%')) {
-                                        tax_cells[2] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.category_3 += tax_amount;
+                                        tax_cells[2] = formatKHR(tax_amount_khr);
+                                        categoryTotals.category_3 += tax_amount_khr;
                                     } else if (row.tax_rate.includes('៤%') || row.tax_rate.includes('4%')) {
-                                        tax_cells[3] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.category_4 += tax_amount;
+                                        tax_cells[3] = formatKHR(tax_amount_khr);
+                                        categoryTotals.category_4 += tax_amount_khr;
                                     } else if (row.tax_rate.includes('១០%') || row.tax_rate.includes('10%')) {
                                         // Rental for legal person or individual
                                         if (row.contact_type && row.contact_type.includes('នីតិបុគ្គល')) {
-                                            tax_cells[4] = __currency_trans_from_en(tax_amount, false);
-                                            categoryTotals.category_5 += tax_amount;
+                                            tax_cells[4] = formatKHR(tax_amount_khr);
+                                            categoryTotals.category_5 += tax_amount_khr;
                                         } else {
                                             // For individual rental payments, recalculate as 10% of payable amount
-                                            let payable_amount = parseFloat(row.payable_amount) || 0;
-                                            // Calculate 10% tax amount (consider exchange rate if present)
-                                            let exchange_rate = row.exchange_rate || 1;
-                                            let calculated_tax = (payable_amount * 0.1) * exchange_rate;
+                                            let calculated_tax_khr = (payable_amount_usd * 0.1) * row_exchange_rate;
                                             
-                                            tax_cells[5] = __currency_trans_from_en(calculated_tax, false);
-                                            categoryTotals.category_6 += calculated_tax;
+                                            tax_cells[5] = formatKHR(calculated_tax_khr);
+                                            categoryTotals.category_6 += calculated_tax_khr;
                                         }
                                     }
                                 } else {
                                     // Non-resident tax categories
                                     if (row.transaction_type && row.transaction_type.includes('ប្រាក់')) {
-                                        tax_cells[6] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.non_res_1 += tax_amount;
+                                        tax_cells[6] = formatKHR(tax_amount_khr);
+                                        categoryTotals.non_res_1 += tax_amount_khr;
                                     } else if (row.transaction_type && row.transaction_type.includes('សួយសារ')) {
-                                        tax_cells[7] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.non_res_2 += tax_amount;
+                                        tax_cells[7] = formatKHR(tax_amount_khr);
+                                        categoryTotals.non_res_2 += tax_amount_khr;
                                     } else if (row.transaction_type && row.transaction_type.includes('សេវា')) {
-                                        tax_cells[8] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.non_res_3 += tax_amount;
+                                        tax_cells[8] = formatKHR(tax_amount_khr);
+                                        categoryTotals.non_res_3 += tax_amount_khr;
                                     } else if (row.transaction_type && row.transaction_type.includes('ភាគលាភ')) {
-                                        tax_cells[9] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.non_res_4 += tax_amount;
+                                        tax_cells[9] = formatKHR(tax_amount_khr);
+                                        categoryTotals.non_res_4 += tax_amount_khr;
                                     } else {
-                                        tax_cells[10] = __currency_trans_from_en(tax_amount, false);
-                                        categoryTotals.non_res_5 += tax_amount;
+                                        tax_cells[10] = formatKHR(tax_amount_khr);
+                                        categoryTotals.non_res_5 += tax_amount_khr;
                                     }
                                 }
                                 
@@ -270,7 +288,7 @@
                                     $('<td>').text(row.tax_residence_type.includes('និវាសនជន') ? 'និវាសនជន' : 'អនិវាសនជន'),
                                     $('<td>').text(row.tax_number),
                                     $('<td>').text(row.contact_name),
-                                    $('<td>').text(__currency_trans_from_en(row.payable_amount, false)),
+                                    $('<td>').html(formatKHR(payable_amount_khr)),
                                     $('<td>').html(tax_cells[0]),
                                     $('<td>').html(tax_cells[1]),
                                     $('<td>').html(tax_cells[2]),
@@ -286,21 +304,24 @@
                                 tbody.append(tr);
                             });
                             
-                            // Update totals with actual data
-                            $('#total_payable_amount').html('<strong>' + __currency_trans_from_en(response.total_payable_amount || 0, false) + '</strong>');
+                            // Calculate total KHR amount
+                            let total_khr = (parseFloat(response.total_payable_amount) || 0) * exchange_rate;
+                            
+                            // Update totals
+                            $('#total_payable_amount').html('<strong>' + formatKHR(total_khr) + '</strong>');
                             
                             // Update category totals
-                            $('#category_1').html('<strong>' + __currency_trans_from_en(categoryTotals.category_1, false) + '</strong>');
-                            $('#category_2').html('<strong>' + __currency_trans_from_en(categoryTotals.category_2, false) + '</strong>');
-                            $('#category_3').html('<strong>' + __currency_trans_from_en(categoryTotals.category_3, false) + '</strong>');
-                            $('#category_4').html('<strong>' + __currency_trans_from_en(categoryTotals.category_4, false) + '</strong>');
-                            $('#category_5').html('<strong>' + __currency_trans_from_en(categoryTotals.category_5, false) + '</strong>');
-                            $('#category_6').html('<strong>' + __currency_trans_from_en(categoryTotals.category_6, false) + '</strong>');
-                            $('#non_res_1').html('<strong>' + __currency_trans_from_en(categoryTotals.non_res_1, false) + '</strong>');
-                            $('#non_res_2').html('<strong>' + __currency_trans_from_en(categoryTotals.non_res_2, false) + '</strong>');
-                            $('#non_res_3').html('<strong>' + __currency_trans_from_en(categoryTotals.non_res_3, false) + '</strong>');
-                            $('#non_res_4').html('<strong>' + __currency_trans_from_en(categoryTotals.non_res_4, false) + '</strong>');
-                            $('#non_res_5').html('<strong>' + __currency_trans_from_en(categoryTotals.non_res_5, false) + '</strong>');
+                            $('#category_1').html('<strong>' + formatKHR(categoryTotals.category_1) + '</strong>');
+                            $('#category_2').html('<strong>' + formatKHR(categoryTotals.category_2) + '</strong>');
+                            $('#category_3').html('<strong>' + formatKHR(categoryTotals.category_3) + '</strong>');
+                            $('#category_4').html('<strong>' + formatKHR(categoryTotals.category_4) + '</strong>');
+                            $('#category_5').html('<strong>' + formatKHR(categoryTotals.category_5) + '</strong>');
+                            $('#category_6').html('<strong>' + formatKHR(categoryTotals.category_6) + '</strong>');
+                            $('#non_res_1').html('<strong>' + formatKHR(categoryTotals.non_res_1) + '</strong>');
+                            $('#non_res_2').html('<strong>' + formatKHR(categoryTotals.non_res_2) + '</strong>');
+                            $('#non_res_3').html('<strong>' + formatKHR(categoryTotals.non_res_3) + '</strong>');
+                            $('#non_res_4').html('<strong>' + formatKHR(categoryTotals.non_res_4) + '</strong>');
+                            $('#non_res_5').html('<strong>' + formatKHR(categoryTotals.non_res_5) + '</strong>');
                         } else {
                             // Display no data message
                             tbody.html(
@@ -308,12 +329,12 @@
                             );
                             
                             // Reset totals to zero when no data
-                            $('#total_payable_amount').html('<strong>' + __currency_trans_from_en(0, false) + '</strong>');
+                            $('#total_payable_amount').html('<strong>0 ៛</strong>');
                             
                             // Reset all category totals to zero
                             $('#category_1, #category_2, #category_3, #category_4, #category_5, #category_6')
                                 .add('#non_res_1, #non_res_2, #non_res_3, #non_res_4, #non_res_5')
-                                .html('<strong>' + __currency_trans_from_en(0, false) + '</strong>');
+                                .html('<strong>0 ៛</strong>');
                         }
                     },
                     error: function(xhr, status, error) {

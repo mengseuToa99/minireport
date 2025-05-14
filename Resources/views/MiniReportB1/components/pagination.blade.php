@@ -1,6 +1,6 @@
   <div class="row-limit-controls no-print">
             <label for="row-limit">ចំនួនជួរដែលត្រូវបង្ហាញ:</label>
-            <select id="row-limit" class="row-limit-select">
+            <select id="row-limit" style="background-color: white;" class="row-limit-select">
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>

@@ -7,7 +7,7 @@
     @include('minireportb1::MiniReportB1.StandardReport.MonthlyReport.index')
     @include('minireportb1::MiniReportB1.StandardReport.YearlyReport.index')
     @include('minireportb1::MiniReportB1.StandardReport.HumanResource.index')
-    @include('minireportb1::MiniReportB1.StandardReport.Invoice.index')
+    @include('minireportb1::MiniReportB1.StandardReport.SaleAndFrancier.index')
     @include('minireportb1::MiniReportB1.StandardReport.Salesandcustomers.index')
     @include('minireportb1::MiniReportB1.StandardReport.BusinessOverview.index')
     @include('minireportb1::MiniReportB1.StandardReport.OperationalReports.index')

@@ -1,721 +1,629 @@
-<!DOCTYPE html>
-<html lang="km">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ទំរង់ FORM PRR 02 - Application Form for Property Rental Tax</title>
-    <style>
-        body {
-            font-family: 'Khmer OS', 'Arial', sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #000;
-            font-size: 12px;
-        }
-        
-        .form-container {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            border: 1px solid #000;
-            padding: 15px;
-            box-sizing: border-box;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .header h1 {
-            font-size: 16px;
-            margin: 5px 0;
-        }
-        
-        .header .khmer {
-            font-weight: bold;
-        }
-        
-        .header .english {
-            font-style: italic;
-            font-size: 14px;
-        }
-        
-        .section {
-            margin-bottom: 15px;
-            border: 1px solid #000;
-            padding: 10px;
-        }
-        
-        .section-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            text-decoration: underline;
-        }
-        
-        .row {
-            display: flex;
-            margin-bottom: 8px;
-        }
-        
-        .col {
-            flex: 1;
-            padding: 0 5px;
-        }
-        
-        .label {
-            margin-bottom: 3px;
-            font-weight: bold;
-        }
-        
-        .label .khmer {
-            display: block;
-        }
-        
-        .label .english {
-            display: block;
-            font-style: italic;
-            font-size: 10px;
-        }
-        
-        .input-field {
-            border-bottom: 1px solid #000;
-            height: 20px;
-            padding: 0 5px;
-        }
-        
-        .date-input {
-            display: flex;
-            align-items: center;
-        }
-        
-        .date-input .day, .date-input .month, .date-input .year {
-            display: flex;
-            align-items: center;
-            margin-right: 10px;
-        }
-        
-        .date-input .day input, .date-input .month input, .date-input .year input {
-            width: 20px;
+@extends('layouts.app')
+
+@section('title', __('Application Form for Property Rental Tax'))
+
+@section('content')
+@include("minireportb1::MiniReportB1.components.back_to_dashboard_button")
+@include('minireportb1::MiniReportB1.components.reportheader', [
+        'report_name' => 'Application Form for Property Rental Tax'
+    ])
+<div class="container-fluid" style="align-items: center;">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card mb-4">
+                <div class="card-body prr-form">
+                    <div class="prr-header">
+                        <div class="left-header">
+                            <div class="khmer-text">ក្រសួងសេដ្ឋកិច្ចនិងហិរញ្ញវត្ថុ</div>
+                            <div class="english-text">MINISTRY OF ECONOMY AND FINANCE</div>
+                            <div class="khmer-text mt-2">អគ្គនាយកដ្ឋានពន្ធដារ</div>
+                            <div class="english-text">GENERAL DEPARTMENT OF TAXATION</div>
+                        </div>
+                        <div class="center-header">
+                            <img src="{{ asset('modules/minireportb1/img/cambodia-emblem.png') }}" alt="Cambodia Emblem" class="cambodia-emblem">
+                        </div>
+                        <div class="right-header">
+                            <div class="form-number">
+                                <div class="khmer-text">ទំរង់ FORM PRR 02</div>
+                            </div>
+                            <div class="form-number-box">
+                                <div class="form-no">សំណុំបែបបទលេខ</div>
+                                <div class="english-text">FORM NUMBER:</div>
+                                <div class="form-input-box"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-title mt-4 mb-4 text-center">
+                        <h4 class="khmer-title">ពាក្យសុំសំរាប់ពន្ធលើការជួលអចលនវត្ថុ</h4>
+                        <h5 class="english-title">Application Form for Property Rental Tax</h5>
+                    </div>
+
+                    <div class="section-box mb-4">
+                        <div class="section-header">
+                            <span class="section-number">I</span>
+                            <span class="section-title">ព័ត៌មានអ្នកដាក់ពាក្យ / Applicant Info</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="row mb-3">
+                                <div class="col-md-2">
+                                    <div class="form-check-item">
+                                        <input type="checkbox" class="form-check-input" id="resident">
+                                        <label class="form-check-label" for="resident">និវាសនជន (Resident)</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check-item">
+                                        <input type="checkbox" class="form-check-input" id="non-resident">
+                                        <label class="form-check-label" for="non-resident">អនិវាសនជន (Non-resident)</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check-item">
+                                        <input type="checkbox" class="form-check-input" id="pe">
+                                        <label class="form-check-label" for="pe">PE (Branch)</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">ឈ្មោះម្ចាស់អចលនវត្ថុ / Owner Full Name</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">ឈ្មោះជាភាសាអង់គ្លេស / Name in Latin and English</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">ប្រភេទអាជីវកម្ម / Business Type</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">លេខអត្តសញ្ញាណកម្មសារពើពន្ធ / TIN</label>
+                                    <div class="tin-input">
+                                        <input type="text" class="form-control">
+                                        <span class="separator">-</span>
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                        <input type="text" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-box mb-4">
+                        <div class="section-header">
+                            <span class="section-number">II</span>
+                            <span class="section-title">ព័ត៌មានអចលនវត្ថុ និងការជួល / Property and Rental Information</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">ប្រភេទកម្មសិទ្ធិ / Property Type</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">ផ្ទៃក្រឡានៃអចលនវត្ថុ / Property Area (m²)</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">អាសយដ្ឋានអចលនវត្ថុ / Property Address</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">ខេត្ត/ក្រុង / Province/City</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">ស្រុក/ខណ្ឌ / District</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">ឃុំ/សង្កាត់ / Commune</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-box mb-4">
+                        <div class="section-header">
+                            <span class="section-number">III</span>
+                            <span class="section-title">ព័ត៌មានអំពីការជួល / Rental Details</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">កាលបរិច្ឆេទចាប់ផ្តើម / Start Date</label>
+                                    <div class="date-input-group">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control day-input" placeholder="ថ្ងៃ/D" maxlength="2">
+                                            <input type="text" class="form-control month-input" placeholder="ខែ/M" maxlength="2">
+                                            <input type="text" class="form-control year-input" placeholder="ឆ្នាំ/Y" maxlength="4">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">កាលបរិច្ឆេទបញ្ចប់ / End Date</label>
+                                    <div class="date-input-group">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control day-input" placeholder="ថ្ងៃ/D" maxlength="2">
+                                            <input type="text" class="form-control month-input" placeholder="ខែ/M" maxlength="2">
+                                            <input type="text" class="form-control year-input" placeholder="ឆ្នាំ/Y" maxlength="4">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">រយៈពេល (ខែ) / Duration (Months)</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">ប្រាក់ជួលប្រចាំខែ / Monthly Rental (USD)</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">ប្រាក់ជួលប្រចាំខែ / Monthly Rental (KHR)</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-box mb-4">
+                        <div class="section-header">
+                            <span class="section-number">IV</span>
+                            <span class="section-title">ឯកសារភ្ជាប់ / Attachment check-list</span>
+                        </div>
+                        <div class="section-content">
+                            <ul class="attachment-list">
+                                <li class="attachment-item">
+                                    <span class="number">1</span>
+                                    <div class="attachment-desc">
+                                        <span class="khmer-text">កិច្ចសន្យាជួលចុះហត្ថលេខាអ្នកជួល និងម្ចាស់ដីរឺអាគារ</span>
+                                        <span class="english-text">ច្បាប់ដើម</span>
+                                    </div>
+                                </li>
+                                <li class="attachment-item">
+                                    <span class="number">2</span>
+                                    <div class="attachment-desc">
+                                        <span class="khmer-text">អត្តសញ្ញាណប័ណ្ណ ឬលិខិតឆ្លងដែន</span>
+                                        <span class="english-text">ច្បាប់ចម្លង</span>
+                                    </div>
+                                </li>
+                                <li class="attachment-item">
+                                    <span class="number">3</span>
+                                    <div class="attachment-desc">
+                                        <span class="khmer-text">លិខិតប្រគល់សិទ្ធិ ឬលិខិតគ្រប់គ្រងអចលនវត្ថុ</span>
+                                        <span class="english-text">ច្បាប់ចម្លង</span>
+                                    </div>
+                                </li>
+                                <li class="attachment-item">
+                                    <span class="number">4</span>
+                                    <div class="attachment-desc">
+                                        <span class="khmer-text">បង្កាន់ដៃបង់ពន្ធប៉ាតង់ឆ្នាំចុងក្រោយ</span>
+                                        <span class="english-text">ច្បាប់ចម្លង</span>
+                                    </div>
+                                </li>
+                                <li class="attachment-item">
+                                    <span class="number">5</span>
+                                    <div class="attachment-desc">
+                                        <span class="khmer-text">ប័ណ្ណប៉ាតង់ (ករណីអាជីវកម្ម)</span>
+                                        <span class="english-text">ច្បាប់ចម្លង</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="page-number text-right mb-2">ទំព័រ 1/2</div>
+
+                    <!-- Page 2 -->
+                    <div class="page-break"></div>
+
+                    <div class="section-box mb-4 mt-5">
+                        <div class="section-header">
+                            <span class="section-number">V</span>
+                            <span class="section-title">សេចក្តីថ្លែងសច្ចាប័ន / Declaration</span>
+                        </div>
+                        <div class="section-content">
+                            <p class="declaration-text">
+                                ខ្ញុំសូមធានាអះអាងថាព័ត៌មានទាំងអស់ដែលបានផ្តល់ជូនក្នុងពាក្យសុំនេះ (រួមទាំងឯកសារភ្ជាប់) ពិតជាត្រឹមត្រូវ និងពិតប្រាកដ។
+                                <br>
+                                <span class="english-text">I declare that the information provided in this application including all attachments are true and correct.</span>
+                            </p>
+
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="date-stamp-box">
+                                        <div class="date-label">កាលបរិច្ឆេទ / Date:</div>
+                                        <div class="date-input-control">
+                                            <input type="text" class="form-control day-input" placeholder="ថ្ងៃ/D" maxlength="2">
+                                            <input type="text" class="form-control month-input" placeholder="ខែ/M" maxlength="2">
+                                            <input type="text" class="form-control year-input" placeholder="ឆ្នាំ/Y" maxlength="4">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="signature-box text-center">
+                                        <div class="signature-line"></div>
+                                        <div class="signature-label">ហត្ថលេខានិងឈ្មោះ / Signature and name</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-box mb-4">
+                        <div class="section-header official-use">
+                            <span class="section-title">សម្រាប់មន្ត្រីពន្ធដារប៉ុណ្ណោះ / For tax official use only</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">ការិយាល័យសារពើពន្ធ / Tax Office</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">កាលបរិច្ឆេទ / Date</label>
+                                    <div class="date-input-group">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control day-input" placeholder="ថ្ងៃ/D" maxlength="2">
+                                            <input type="text" class="form-control month-input" placeholder="ខែ/M" maxlength="2">
+                                            <input type="text" class="form-control year-input" placeholder="ឆ្នាំ/Y" maxlength="4">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="row signature-row">
+                                        <div class="col-md-6">
+                                            <div class="signature-box text-center">
+                                                <div class="signature-label">អ្នកទទួលពាក្យសុំ / Tax officer</div>
+                                                <div class="signature-line mt-4"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="signature-box text-center">
+                                                <div class="signature-label">ប្រធាន / Director</div>
+                                                <div class="signature-line mt-4"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="signature-box text-center">
+                                        <div class="signature-label">ប្រធាននាយកដ្ឋាន / Head of Division</div>
+                                        <div class="signature-line mt-4"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="signature-box text-center">
+                                        <div class="signature-label">ប្រធានសាខា / Head of Branch</div>
+                                        <div class="signature-line mt-4"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="page-number text-right">ទំព័រ 2/2</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .prr-form {
+        font-family: 'Khmer OS', 'Khmer OS System', 'Khmer OS Battambang', Arial, sans-serif;
+        color: #000;
+    }
+
+    .prr-header {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .left-header, .right-header {
+        width: 30%;
+    }
+
+    .center-header {
+        width: 40%;
+        text-align: center;
+    }
+
+    .cambodia-emblem {
+        width: 100px;
+        height: auto;
+    }
+
+    .khmer-text {
+        font-weight: 600;
+    }
+
+    .english-text {
+        font-size: 0.9em;
+        color: #444;
+    }
+
+    .form-number {
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .form-number-box {
+        border: 1px solid #000;
+        padding: 5px;
+        margin-top: 10px;
+        text-align: center;
+    }
+
+    .form-input-box {
+        border: 1px dashed #999;
+        height: 25px;
+        margin-top: 5px;
+    }
+
+    .form-title {
+        border-bottom: 1px solid #000;
+        padding-bottom: 15px;
+    }
+
+    .khmer-title {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    .english-title {
+        color: #444;
+    }
+
+    .section-box {
+        border: 1px solid #000;
+    }
+
+    .section-header {
+        background-color: #eee;
+        padding: 8px 15px;
+        border-bottom: 1px solid #000;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .section-number {
+        display: inline-block;
+        width: 25px;
+        height: 25px;
+        line-height: 25px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #fff;
+        border: 1px solid #000;
+        margin-right: 10px;
+    }
+
+    .section-content {
+        padding: 15px;
+    }
+
+    .form-check-item {
+        display: flex;
+        align-items: center;
+    }
+
+    .form-check-input {
+        margin-right: 5px;
+    }
+
+    .tin-input {
+        display: flex;
+        align-items: center;
+    }
+
+    .tin-input input {
+        width: 40px;
+        text-align: center;
+    }
+
+    .tin-input .separator {
+        margin: 0 5px;
+        font-weight: bold;
+    }
+
+    .date-input-group .input-group {
+        flex-wrap: nowrap;
+    }
+
+    .day-input, .month-input {
+        width: 60px;
+        text-align: center;
+    }
+
+    .year-input {
+        width: 80px;
+        text-align: center;
+    }
+
+    .attachment-list {
+        list-style-type: none;
+        padding-left: 0;
+    }
+
+    .attachment-item {
+        display: flex;
+        margin-bottom: 12px;
+    }
+
+    .attachment-item .number {
+        display: inline-block;
+        width: 25px;
+        height: 25px;
+        line-height: 25px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #fff;
+        border: 1px solid #000;
+        margin-right: 10px;
+    }
+
+    .attachment-desc {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .page-break {
+        page-break-after: always;
+        margin-bottom: 20px;
+        border-top: 1px dashed #ccc;
+        padding-top: 20px;
+    }
+
+    .declaration-text {
+        text-align: justify;
+        padding: 10px;
+        border: 1px dashed #000;
+        background-color: #f9f9f9;
+    }
+
+    .date-stamp-box {
+        display: flex;
+        align-items: center;
+    }
+
+    .date-label {
+        margin-right: 10px;
+        font-weight: bold;
+    }
+
+    .signature-box {
+        padding: 10px;
+    }
+
+    .signature-line {
+        height: 1px;
+        background-color: #000;
+        width: 80%;
+        margin: 30px auto 10px;
+    }
+
+    .signature-label {
+        font-size: 0.9em;
+    }
+
+    .official-use {
+        background-color: #f2f2f2;
+        color: #555;
+    }
+
+    .signature-row {
+        margin-top: 20px;
+    }
+
+    .page-number {
+        font-size: 0.8em;
+        color: #555;
+    }
+
+    @media print {
+        .card {
             border: none;
-            border-bottom: 1px solid #000;
-            text-align: center;
-            margin: 0 3px;
         }
-        
-        .checkbox-group {
-            display: flex;
-            margin-top: 5px;
+        .card-body {
+            padding: 0;
         }
-        
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            margin-right: 15px;
+        .page-break {
+            page-break-after: always;
         }
-        
-        .checkbox-item input {
-            margin-right: 5px;
-        }
-        
-        .signature-line {
-            border-top: 1px solid #000;
-            width: 200px;
-            margin-top: 30px;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 10px;
-        }
-        
-        .page-number {
-            text-align: right;
-            font-size: 10px;
-            margin-top: 10px;
-        }
-        
-        .attachment-item {
-            display: flex;
-            margin-bottom: 5px;
-        }
-        
-        .attachment-number {
-            margin-right: 10px;
-            font-weight: bold;
-        }
-        
-        .address-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
-        }
-        
-        .address-item {
-            margin-bottom: 5px;
-        }
-    </style>
-</head>
-<body>
-@include("minireportb1::MiniReportB1.components.back_to_tax_dashboard_button")
+    }
+</style>
 
-    <div class="form-container">
-        <div class="header">
-            <h1 class="khmer">ទំព័រ</h1>
-            <h1 class="english">Page</h1>
-            <h1 class="khmer">ពាក្យសុំសំរាប់ពីពន្ធលើរឿងឈ្នួលអចលនវត្ថុ</h1>
-            <h1 class="english">Application Form for Property Rental Tax</h1>
-        </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-tabbing between date fields
+        const dateInputs = document.querySelectorAll('.day-input, .month-input, .year-input');
         
-        <!-- Section I: Owner/Lessor and Lessee Information -->
-        <div class="section">
-            <div class="section-title">
-                I. ព័ត៌មានកម្មសិទ្ធិករ ឬសិទ្ធិវន្ត និងអ្នកជួល / Owner's or Lessor's and Lessee's Information
-            </div>
-            
-            <!-- Owner/Lessor Information -->
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ឈ្មោះកម្មសិទ្ធិករ ឬ សិទ្ធិវន្ត</span>
-                        <span class="english">Name of Owner's or Lessor</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">លេខទូរស័ព្ទ</span>
-                        <span class="english">Telephone Number</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-            
-            <!-- Lessee Information -->
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ឈ្មោះអ្នកជួល</span>
-                        <span class="english">Name of Lessee</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">លេខទូរស័ព្ទ</span>
-                        <span class="english">Telephone Number</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Section II: Property Rental Information -->
-        <div class="section">
-            <div class="section-title">
-                II. ព័ត៌មានរបស់អចលនវត្ថុជួល / Property Rental Information
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">លេខសម្គាល់ការចុះបញ្ជីពន្ធលើរឿងឈ្នួលអចលនវត្ថុ</span>
-                        <span class="english">Registration Number (RIN)</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">លេខសម្គាល់អចលនវត្ថុដែលជួល (បាកូដ)</span>
-                        <span class="english">Barcode Number</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-            
-            <!-- Property Address -->
-            <div class="label">
-                <span class="khmer">អាសយដ្ឋានអចលនវត្ថុដែលជួល ផ្ទះលេខ/អគារ</span>
-                <span class="english">Rental Address House No./ Building</span>
-            </div>
-            
-            <div class="address-grid">
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ជាន់ទី</span>
-                        <span class="english">Floor</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">លេខបន្ទប់</span>
-                        <span class="english">Room No.</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ផ្លូវ</span>
-                        <span class="english">Street</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ភូមិ</span>
-                        <span class="english">Village</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ឃុំ/សង្កាត់</span>
-                        <span class="english">Commune</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ក្រុង/ស្រុក/ខណ្ឌ</span>
-                        <span class="english">District</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="address-item">
-                    <div class="label">
-                        <span class="khmer">ខេត្ត/រាជធានី</span>
-                        <span class="english">Province/City</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Section III: Purpose and Date -->
-        <div class="section">
-            <div class="section-title">
-                III. កម្មវត្ថុនៃការសុំ និង កាលបរិច្ឆេទ / Purpose and Date
-            </div>
-            
-            <div class="label">
-                <span class="khmer">មូលហេតុ (Reason):</span>
-            </div>
-            
-            <div class="checkbox-group">
-                <div class="checkbox-item">
-                    <input type="checkbox" id="reason1" name="reason">
-                    <label for="reason1">ផ្អាកបណ្តោះអាសន្ន (Suspension)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="reason2" name="reason">
-                    <label for="reason2">បញ្ឈប់ជាស្ថាពរ (Termination)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="reason3" name="reason">
-                    <label for="reason3">ផ្ទេរ (Transfer)</label>
-                </div>
-            </div>
-            
-            <!-- Dates -->
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">កាលបរិច្ឆេទបញ្ឈប់</span>
-                        <span class="english">Termination Date</span>
-                    </div>
-                    <div class="date-input">
-                        <span class="khmer">ថ្ងៃទី</span>
-                        <span class="english">Day</span>
-                        <div class="day">
-                            <input type="text" maxlength="2"> D
-                        </div>
-                        <span class="khmer">ខែ</span>
-                        <span class="english">Month</span>
-                        <div class="month">
-                            <input type="text" maxlength="2"> M
-                        </div>
-                        <span class="khmer">ឆ្នាំ</span>
-                        <span class="english">Year</span>
-                        <div class="year">
-                            <input type="text" maxlength="4"> Y
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">កាលបរិច្ឆេទផ្ទេរតាមសិទ្ធិប្រកាស</span>
-                        <span class="english">Transfer Date</span>
-                    </div>
-                    <div class="date-input">
-                        <span class="khmer">ថ្ងៃទី</span>
-                        <span class="english">Day</span>
-                        <div class="day">
-                            <input type="text" maxlength="2"> D
-                        </div>
-                        <span class="khmer">ខែ</span>
-                        <span class="english">Month</span>
-                        <div class="month">
-                            <input type="text" maxlength="2"> M
-                        </div>
-                        <span class="khmer">ឆ្នាំ</span>
-                        <span class="english">Year</span>
-                        <div class="year">
-                            <input type="text" maxlength="4"> Y
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">កាលបរិច្ឆេទផ្អាក</span>
-                        <span class="english">Suspension Date</span>
-                    </div>
-                    <div class="date-input">
-                        <span class="khmer">ថ្ងៃទី</span>
-                        <span class="english">Day</span>
-                        <div class="day">
-                            <input type="text" maxlength="2"> D
-                        </div>
-                        <span class="khmer">ខែ</span>
-                        <span class="english">Month</span>
-                        <div class="month">
-                            <input type="text" maxlength="2"> M
-                        </div>
-                        <span class="khmer">ឆ្នាំ</span>
-                        <span class="english">Year</span>
-                        <div class="year">
-                            <input type="text" maxlength="4"> Y
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                    <div class="date-input">
-                        <span class="khmer">ដល់</span>
-                        <span class="english">Until</span>
-                        <div class="day">
-                            <input type="text" maxlength="2"> D
-                        </div>
-                        <div class="month">
-                            <input type="text" maxlength="2"> M
-                        </div>
-                        <div class="year">
-                            <input type="text" maxlength="4"> Y
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="label">
-                <span class="khmer">សាខាពន្ធដារ</span>
-                <span class="english">Tax branch</span>
-            </div>
-            <div class="input-field"></div>
-        </div>
-        
-        <!-- Section IV: Attachment check-list -->
-        <div class="section">
-            <div class="section-title">
-                IV. សំណុំឯកសារភ្ជាប់ / Attachment check-list
-            </div>
-            
-            <div class="attachment-item">
-                <div class="attachment-number">1.</div>
-                <div>
-                    <div class="label">
-                        <span class="khmer">លិខិតបញ្ជាក់កិច្ចសន្យារវាងកម្មសិទ្ធិករ ឬ សិទ្ធិវន្ត និងអ្នកជួល (ប្រសិនបើមាន)</span>
-                        <span class="english">Termination Lease Agreement Letter between Owner/Lessor and Lessee (If any)</span>
-                    </div>
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="attachment-item">
-                <div class="attachment-number">2.</div>
-                <div>
-                    <div class="label">
-                        <span class="khmer">កិច្ចសន្យាជួលអចលនវត្ថុ</span>
-                        <span class="english">Lease Agreement</span>
-                    </div>
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="attachment-item">
-                <div class="attachment-number">3.</div>
-                <div>
-                    <div class="label">
-                        <span class="khmer">បង្កាន់ដៃរបស់ការបង់ប្រមូលពន្ធខែចុងក្រោយ</span>
-                        <span class="english">Last Month Single Invoice of Rental Tax</span>
-                    </div>
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="attachment-item">
-                <div class="attachment-number">4.</div>
-                <div>
-                    <div class="label">
-                        <span class="khmer">រូបថតទីតាំង</span>
-                        <span class="english">Location Photo</span>
-                    </div>
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="attachment-item">
-                <div class="attachment-number">5.</div>
-                <div>
-                    <div class="label">
-                        <span class="khmer">ករណីផ្ទេរតាមសិទ្ធិប្រកាសរតែវភ្ជាប់ប័ណ្ណពន្ធប៉ាតង់ ឬ លេខ VAT</span>
-                        <span class="english">In case Transfer, please attached patent tax or VAT number</span>
-                    </div>
-                    <div class="label">
-                        <span class="khmer">ច្បាប់ថតចម្លង</span>
-                        <span class="english">Certified Copy</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Page 1 footer -->
-        <div class="page-number">1/2</div>
-        <div class="footer">ទំរង់ FORM PRR 02</div>
-    </div>
-    
-    <!-- Page 2 -->
-    <div class="form-container" style="margin-top: 20px;">
-        <div class="section">
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">លេខបង្កាន់ដៃរបស់ការបង់ប្រមូលពន្ធ</span>
-                        <span class="english">Single Invoice</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">យោបល់ផ្សេងៗ</span>
-                        <span class="english">Comments</span>
-                    </div>
-                    <div class="input-field" style="height: 50px;"></div>
-                </div>
-                <div class="col">
-                    <div class="signature-line"></div>
-                    <div class="label">
-                        <span class="khmer">ហត្ថលេខា</span>
-                        <span class="english">Signature</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">យោបល់ផ្សេងៗ</span>
-                        <span class="english">Comments</span>
-                    </div>
-                    <div class="input-field" style="height: 50px;"></div>
-                </div>
-                <div class="col">
-                    <div class="signature-line"></div>
-                    <div class="label">
-                        <span class="khmer">ហត្ថលេខា</span>
-                        <span class="english">Signature</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="signature-line"></div>
-                    <div class="label">
-                        <span class="khmer">ហត្ថលេខា</span>
-                        <span class="english">Signature</span>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="signature-line"></div>
-                    <div class="label">
-                        <span class="khmer">ហត្ថលេខា</span>
-                        <span class="english">Signature</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">យោបល់ផ្សេងៗ</span>
-                        <span class="english">Comments</span>
-                    </div>
-                    <div class="input-field" style="height: 50px;"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">យោបល់ផ្សេងៗ</span>
-                        <span class="english">Comments</span>
-                    </div>
-                    <div class="input-field" style="height: 50px;"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Section V: Declaration -->
-        <div class="section">
-            <div class="section-title">
-                V. សច្ចាប័ន្របកាស / Declaration
-            </div>
-            
-            <p style="text-align: justify;">
-                <span class="khmer">ខ្ញុំប្រធាន/នាងខ្ញុំសូមធ្វើធានាថា ព័ត៌មានទាំងអស់នៅលើលិខិតប្រកាសនេះពិតជាត្រឹមត្រូវ និងសូមទទួលខុសត្រូវទាំងស្រុងចំពោះមុខច្បាប់ទាំងឡាយជាធរមាន ប្រសិនបើព័ត៌មានណាមួយមានការក្លែងបន្លំ។</span>
-                <span class="english">I declare that information provided in this application including all attachments are true and correct.</span>
-            </p>
-            
-            <div class="signature-line" style="margin-top: 30px;"></div>
-            <div class="label">
-                <span class="khmer">ហត្ថលេខា</span>
-                <span class="english">Signature</span>
-            </div>
-        </div>
-        
-        <!-- Tax official use only -->
-        <div class="section">
-            <div class="section-title">
-                សម្រាប់មន្ត្រីពន្ធដារ / Tax official use only
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">កាលបរិច្ឆេទ</span>
-                        <span class="english">Date</span>
-                    </div>
-                    <div class="date-input">
-                        <div class="day">
-                            <input type="text" maxlength="2"> D
-                        </div>
-                        <div class="month">
-                            <input type="text" maxlength="2"> M
-                        </div>
-                        <div class="year">
-                            <input type="text" maxlength="4"> Y
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="signature-line"></div>
-                    <div class="label">
-                        <span class="khmer">ហត្ថលេខា</span>
-                        <span class="english">Signature</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row" style="margin-top: 20px;">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ឈ្មោះ</span>
-                        <span class="english">Name</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">មន្ត្រីទទួលបន្ទុក</span>
-                        <span class="english">Tax officer</span>
-                    </div>
-                    <div class="input-field"></div>
-                </div>
-            </div>
-            
-            <div class="row" style="margin-top: 10px;">
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">អនុប្រធានការិយាល័យ</span>
-                        <span class="english">Deputy of Bureau</span>
-                    </div>
-                    <div class="signature-line"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ប្រធានការិយាល័យ</span>
-                        <span class="english">Head of Bureau</span>
-                    </div>
-                    <div class="signature-line"></div>
-                </div>
-                <div class="col">
-                    <div class="label">
-                        <span class="khmer">ប្រធានសាខាពន្ធដារ</span>
-                        <span class="english">Head of Branch</span>
-                    </div>
-                    <div class="signature-line"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Page 2 footer -->
-        <div class="page-number">2/2</div>
-    </div>
-
-    <script>
-        // JavaScript for form functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-tab between date fields
-            const dateInputs = document.querySelectorAll('.date-input input');
-            dateInputs.forEach(input => {
-                input.addEventListener('input', function() {
-                    if (this.value.length === this.maxLength) {
-                        const next = this.parentElement.nextElementSibling;
-                        if (next && next.querySelector('input')) {
-                            next.querySelector('input').focus();
+        dateInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                if (this.value.length >= this.maxLength) {
+                    // Find the next input in the same date group
+                    const parent = this.closest('.date-input-group') || this.closest('.date-stamp-box');
+                    if (parent) {
+                        const inputs = Array.from(parent.querySelectorAll('input'));
+                        const currentIndex = inputs.indexOf(this);
+                        if (currentIndex < inputs.length - 1) {
+                            inputs[currentIndex + 1].focus();
                         }
                     }
-                });
-                
-                // Allow only numbers
-                input.addEventListener('keypress', function(e) {
-                    if (e.key < '0' || e.key > '9') {
-                        e.preventDefault();
-                    }
-                });
+                }
             });
             
-            // Make checkboxes mutually exclusive
-            const checkboxes = document.querySelectorAll('input[name="reason"]');
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    if (this.checked) {
-                        checkboxes.forEach(cb => {
-                            if (cb !== this) cb.checked = false;
-                        });
-                    }
-                });
+            // Numbers only validation
+            input.addEventListener('keypress', function(e) {
+                if (e.key < '0' || e.key > '9') {
+                    e.preventDefault();
+                }
             });
         });
-    </script>
-</body>
-</html>
+        
+        // Handle TIN input auto-tab
+        const tinInputs = document.querySelectorAll('.tin-input input');
+        
+        tinInputs.forEach((input, index) => {
+            input.addEventListener('input', function() {
+                if (this.value.length >= this.maxLength && index < tinInputs.length - 1) {
+                    tinInputs[index + 1].focus();
+                }
+            });
+            
+            // Numbers only validation
+            input.addEventListener('keypress', function(e) {
+                if (e.key < '0' || e.key > '9') {
+                    e.preventDefault();
+                }
+            });
+        });
+        
+        // Make resident/non-resident checkboxes mutually exclusive
+        const checkboxes = document.querySelectorAll('#resident, #non-resident, #pe');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    checkboxes.forEach(cb => {
+                        if (cb !== this) cb.checked = false;
+                    });
+                }
+            });
+        });
+    });
+</script>
+@endsection

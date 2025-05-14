@@ -109,7 +109,7 @@
 
                     <div class="col-md-6 report-item" data-title="Employee Contact List">
                         <div class="report-box">
-                            <a href="{{ route('sr_batch_groupprice') }}" class="report-link">
+                            <a href="{{ route('minireportb1.cash_recon') }}" class="report-link">
                                 <span>8. Cash Recon</span>
                             </a>
                             <div class="icons">
@@ -282,7 +282,7 @@
 
                     <div class="col-md-6 report-item" data-title="Profit / Loss Report">
                         <div class="report-box">
-                                                     <a href="{{ route('minireportb1.standardReport.humanResource.monthly_tax_report') }}" class="report-link">
+                                                     <a href="{{ route('sr_e_wht') }}" class="report-link">
 
                                                                 <span>19.E-WHT</span>
 

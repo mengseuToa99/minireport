@@ -437,6 +437,10 @@
                     </table>
                 </div>
             @endcomponent
+
+            @include('minireportb1::MiniReportB1.components.reportheader', [
+        'report_name' => 'Income Report (Monthly Income)'
+    ])
         </div>
     </div>
 @endsection

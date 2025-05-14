@@ -221,7 +221,8 @@
         </button>
 
         <div>
-            <button id="printButton" class="btn btn-primary"><i class="fas fa-print"></i> Print</button>
+            @include('minireportb1::MiniReportB1.components.printbutton')
+
             <button id="exportExcelButton" class="btn btn-info"><i class="fas fa-file-excel"></i> Export to Excel</button>
         </div>
     </div>
@@ -659,9 +660,7 @@
                 });
             });
 
-            document.getElementById('printButton')?.addEventListener('click', function() {
-                window.print();
-            });
+          
         });
     </script>
     <script src="{{ asset('modules/minireportb1/js/print.js') }}"></script>
